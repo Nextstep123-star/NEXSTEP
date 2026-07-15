@@ -91,6 +91,48 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--o
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ============================================================
+   Dashboard layout (sidebar + main)
+   ============================================================ */
+
+/* full-page grid */
+.db-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 767px) {
+  .db-layout { grid-template-columns: 1fr; }
+  .db-sidebar { display: none; }
+}
+
+.db-sidebar { width: 220px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+
+/* main scroll area */
+.db-main { min-height: 100vh; background: var(--surface); }
+
+/* card base */
+.db-card {
+  background: var(--surface-container-low, #1f2119);
+  border: 1px solid var(--surface-variant);
+  border-radius: 16px;
+}
+
+/* sidebar nav item */
+.dash-nav-item { color: var(--on-surface-variant); }
+.dash-nav-item:hover { background: var(--surface-container); color: var(--on-surface); }
+.dash-nav-item.active { background: rgba(194,217,15,.1); color: var(--primary); border: 1px solid rgba(194,217,15,.2); }
+
+/* badge */
+.db-badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px; border-radius: 9999px;
+  border: 1px solid var(--surface-variant);
+  font-size: 12px; font-weight: 600;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+/* ============================================================
    Onboarding / Auth (spec: CLAUDECODE_auth_onboarding.md)
    ============================================================ */
 

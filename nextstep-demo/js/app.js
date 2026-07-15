@@ -149,46 +149,201 @@ async function fetchRoadmap(programId) {
    VIEWS
    ============================================================ */
 
-/* --- create-path --- */
-function viewCreatePath() {
+/* --- dashboard (หน้าหลัก) --- */
+function viewDashboard() {
   const paths = getPaths();
-  const main = getMain();
-  const cards = paths.length
-    ? paths.map((p) => `
-      <div class="tactile-button flex items-center gap-md bg-surface-container-lowest border-2 ${p.id === main ? "border-primary" : "border-surface-variant"} rounded-xl p-md shadow-[0_4px_0_#0d0f08] cursor-pointer" data-open="${p.id}">
-        <div class="w-11 h-11 rounded-full bg-primary-container/20 border-2 border-primary-container flex items-center justify-center shrink-0">${icon("map", { fill: true, cls: "text-primary" })}</div>
+  const mainId = getMain();
+  const mainPath = paths.find((p) => p.id === mainId) || paths[0];
+  const name = displayName() || "นักเรียน";
+  const gpax = state.user?.user_metadata?.gpa || "—";
+
+  // stat cards
+  const stats = [
+    { label: "GPA ปัจจุบัน", value: gpax, sub: "", subCls: "" },
+    { label: "ความคืบหน้า", value: "—", sub: mainPath ? esc(mainPath.name) : "ยังไม่มีเส้นทาง", subCls: "text-primary" },
+    { label: "กิจกรรมใกล้ถึง", value: "—", sub: "", subCls: "" },
+    { label: "วันสอบถัดไป", value: "—", sub: "", subCls: "" },
+  ];
+  const statCards = stats.map((s) => `
+    <div class="db-card p-5 flex flex-col gap-1 min-w-0">
+      <span class="text-[12px] text-on-surface-variant font-medium">${s.label}</span>
+      <span class="font-mono font-bold text-[28px] text-on-surface leading-none">${s.value}</span>
+      ${s.sub ? `<span class="text-[12px] ${s.subCls || "text-on-surface-variant"}">${s.sub}</span>` : ""}
+    </div>`).join("");
+
+  // roadmap horizontal progress (main path)
+  const roadmapSteps = mainPath?._roadmap || [];
+  const roadmapSection = mainPath ? `
+    <div class="db-card p-5 mb-4">
+      <div class="flex items-start gap-3 mb-4">
+        <div class="w-10 h-10 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-xl shrink-0">🎯</div>
         <div class="flex-1 min-w-0">
-          <div class="font-headline font-bold text-[17px] text-on-surface truncate">${esc(p.name)}</div>
-          <div class="text-[13px] text-on-surface-variant truncate">${esc(p.programName || "")}${p.uni ? " · " + esc(p.uni) : ""}</div>
+          <div class="font-display font-bold text-[16px] text-on-surface truncate">${esc(mainPath.programName || mainPath.name)}</div>
+          <div class="text-[12px] text-on-surface-variant truncate">${mainPath.uni ? esc(mainPath.uni) + " · " : ""}TCAS Portfolio</div>
         </div>
-        <button data-heart="${p.id}" class="shrink-0 p-1" aria-label="ตั้งเป็นเส้นทางหลัก">
-          ${icon("favorite", { fill: p.id === main, cls: p.id === main ? "text-error" : "text-outline" })}
+        <span class="shrink-0 text-[13px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-3 py-1">87%</span>
+      </div>
+
+      <!-- horizontal step nodes -->
+      <div class="relative flex items-center gap-0 mb-5 overflow-x-auto no-scrollbar pb-1">
+        ${dashSteps()}
+      </div>
+
+      <!-- progress bar -->
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-[12px] text-on-surface-variant">ความคืบหน้าโดยรวม</span>
+        <span class="text-[12px] font-mono font-bold text-primary">62%</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-surface-variant overflow-hidden">
+        <div class="h-full rounded-full bg-primary" style="width:62%;transition:width .6s cubic-bezier(.32,.78,.2,1)"></div>
+      </div>
+    </div>` : `
+    <div class="db-card p-6 mb-4 flex flex-col items-center text-center gap-3">
+      <span class="text-4xl">🗺️</span>
+      <p class="text-on-surface-variant">ยังไม่มีเส้นทาง</p>
+      <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold px-5 py-2.5 rounded-xl border-b-4 border-[#96a80a]">
+        ${icon("add")} สร้างเส้นทางใหม่
+      </button>
+    </div>`;
+
+  // path finder banner
+  const banner = `
+    <div class="db-card p-4 mb-4 flex items-center gap-4" style="background:rgba(194,217,15,.06);border-color:rgba(194,217,15,.2)">
+      <span class="text-2xl shrink-0">🔍</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display font-bold text-[15px] text-on-surface">ยังไม่แน่ใจเส้นทาง? ลอง Path Finder</div>
+        <div class="text-[12px] text-on-surface-variant">ตอบคำถาม 5 ข้อ · ระบบจะแนะนำเส้นทางที่เหมาะกับคุณ</div>
+      </div>
+      <button id="btn-pathfinder" class="shrink-0 tactile-button bg-primary-container text-on-primary font-bold text-[13px] px-4 py-2 rounded-xl border-b-4 border-[#96a80a] whitespace-nowrap">
+        เริ่มต้นเลย →
+      </button>
+    </div>`;
+
+  // bottom 2-col
+  const events = [
+    { day: "15", month: "พ.ค.", title: "สอบ TPAT3 (คณิต-วิทย์)", sub: "การสอบ · สนามสอบ BKK", dot: "bg-error" },
+    { day: "22", month: "พ.ค.", title: "Young Scientist Camp รอบรับสมัคร", sub: "กิจกรรม · สมัครออนไลน์", dot: "bg-tertiary" },
+    { day: "01", month: "มิ.ย.", title: "Open House จุฬา วิศวะ", sub: "แนะแนว · Onsite", dot: "bg-primary" },
+  ];
+  const news = [
+    { label: "ทปอ. ปรับเกณฑ์ TCAS68 ใช้ TGAT/TPAT ขั้นต่ำ 30%", meta: "25 พ.ค. 68 · ระดับชาติ" },
+    { label: "จุฬาฯ เพิ่มที่นั่ง รอบ Portfolio คณะวิศวะ 20 ที่", meta: "27 พ.ค. 68 · มหาวิทยาลัย" },
+    { label: "กสพท ประกาศวันรับสมัคร TCAS68 รอบ 2 แล้ว", meta: "25 พ.ค. 68 · ข้อสอบ" },
+  ];
+  const eventsCol = `
+    <div class="db-card p-5">
+      <div class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมใกล้มาถึง</div>
+      <div class="space-y-3">
+        ${events.map((e) => `
+          <div class="flex items-start gap-3">
+            <div class="w-10 shrink-0 text-center">
+              <div class="font-mono font-bold text-[18px] text-on-surface leading-none">${e.day}</div>
+              <div class="text-[11px] text-on-surface-variant">${e.month}</div>
+            </div>
+            <div class="flex-1 min-w-0 border-l-2 border-surface-variant pl-3">
+              <div class="font-bold text-[14px] text-on-surface leading-snug">${e.title}</div>
+              <div class="flex items-center gap-1.5 mt-1">
+                <span class="w-1.5 h-1.5 rounded-full shrink-0 ${e.dot}"></span>
+                <span class="text-[12px] text-on-surface-variant">${e.sub}</span>
+              </div>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`;
+  const newsCol = `
+    <div class="db-card p-5">
+      <div class="font-display font-bold text-[14px] text-on-surface-variant mb-3">ข่าวสารการศึกษา</div>
+      <div class="space-y-3">
+        ${news.map((n) => `
+          <div class="flex gap-3 items-start">
+            <span class="mt-1.5 w-1 h-1 rounded-full bg-primary shrink-0"></span>
+            <div>
+              <div class="text-[14px] text-on-surface font-medium leading-snug">${n.label}</div>
+              <div class="text-[12px] text-on-surface-variant mt-0.5">${n.meta}</div>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`;
+
+  return dashShell(`
+    <!-- top header -->
+    <div class="flex items-start justify-between mb-5 gap-4">
+      <div>
+        <h1 class="font-display font-bold text-[22px] text-on-surface leading-tight">
+          สวัสดี, ${esc(name)} 👋
+        </h1>
+        <p class="text-[13px] text-on-surface-variant mt-0.5">
+          พฤหัสบดี 29 พ.ค. 2568 · อัปเดตล่าสุดเมื่อ 3 ชม.ที่แล้ว
+        </p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="db-badge">สาย วิทย์–คณิต</span>
+        <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold text-[13px] px-4 py-2 rounded-xl border-b-4 border-[#96a80a]">
+          + เส้นทางใหม่
         </button>
-      </div>`).join("")
-    : `<div class="text-center text-on-surface-variant py-lg">ยังไม่มีเส้นทาง เริ่มสร้างเส้นทางแรกของคุณเลย!</div>`;
-
-  const authRow = state.user
-    ? `<button data-nav="profile" class="flex items-center gap-sm text-on-surface-variant font-bold text-[14px]">
-         <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-base shadow-[0_2px_0_#96a80a]">🦉</div>
-         สวัสดี, ${esc(displayName())}
-       </button>`
-    : `<span class="text-on-surface-variant font-bold text-[14px]">โหมดผู้เยี่ยมชม</span>`;
-  const authAction = state.user
-    ? `<button data-nav="profile" class="font-bold text-[14px] text-primary">โปรไฟล์</button>`
-    : `<button data-nav="auth" class="font-bold text-[14px] text-primary">เข้าสู่ระบบ</button>`;
-
-  return shellCentered(`
-    <div class="flex items-center justify-between mb-lg">${authRow}${authAction}</div>
-    <div class="text-center mb-xl">
-      <div class="w-20 h-20 mx-auto rounded-full bg-primary-container flex items-center justify-center text-4xl shadow-[0_5px_0_#96a80a] mb-md">🦉</div>
-      <h1 class="font-display font-extrabold text-[28px] text-primary leading-tight">My Roadmap</h1>
-      <p class="text-on-surface-variant mt-1">วางเส้นทางสู่คณะในฝัน แบบทีละขั้น</p>
+      </div>
     </div>
-    <div class="space-y-md mb-xl">${cards}</div>
-    <button id="btn-new" class="tactile-button w-full bg-primary-container text-on-primary font-bold text-[17px] rounded-xl py-md border-b-4 border-[#96a80a] shadow-sm flex items-center justify-center gap-sm">
-      ${icon("add")} สร้างเส้นทางใหม่
-    </button>
+
+    <!-- stat cards row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">${statCards}</div>
+
+    <!-- เส้นทางของฉัน heading -->
+    <h2 class="font-display font-bold text-[15px] text-on-surface mb-3">เส้นทางของฉัน</h2>
+
+    <!-- roadmap card -->
+    ${roadmapSection}
+
+    <!-- path finder banner -->
+    ${banner}
+
+    <!-- bottom 2-col -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      ${eventsCol}
+      ${newsCol}
+    </div>
   `);
+}
+
+/* horizontal step nodes for dashboard roadmap */
+function dashSteps() {
+  const steps = [
+    { n: 1, label: "เลือกสาย\nการเรียน", sub: "ม.4", done: true },
+    { n: 2, label: "สะสม\nPortfolio", sub: "ม.4-5", done: true },
+    { n: 3, label: "เตรียมสอบ\nTPAT3", sub: "ม.5 ปัจจุบัน", current: true },
+    { n: 4, label: "สมัคร\nTCAS รอบ 1", sub: "ต.ค. 67", done: false },
+    { n: 5, label: "สอบ\nTGAT/TPAT", sub: "ธ.ค. 68", done: false },
+    { n: 6, label: "ประกาศ\nผลสอบ", sub: "ก.พ. 68", done: false },
+  ];
+  return steps.map((s, i) => {
+    const dotCls = s.done
+      ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a]"
+      : s.current
+        ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a] ring-4 ring-primary/30"
+        : "bg-surface-container border-surface-variant text-on-surface-variant";
+    const line = i < steps.length - 1
+      ? `<div class="flex-1 h-0.5 mx-1 ${s.done ? "bg-primary" : "bg-surface-variant"}" style="min-width:20px"></div>`
+      : "";
+    const labelLines = s.label.split("\n");
+    return `
+      <div class="flex items-center flex-1 min-w-0">
+        <div class="flex flex-col items-center gap-1 shrink-0">
+          <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center font-mono font-bold text-[13px] ${dotCls}">
+            ${s.done && !s.current ? icon("check", { fill: true }) : s.n}
+          </div>
+          <div class="text-center" style="min-width:60px">
+            <div class="font-bold text-[11px] text-on-surface leading-tight">${labelLines[0]}</div>
+            <div class="font-bold text-[11px] ${s.current ? "text-primary" : "text-on-surface"} leading-tight">${labelLines[1] || ""}</div>
+            <div class="text-[10px] text-on-surface-variant">${s.sub}</div>
+          </div>
+        </div>
+        ${line}
+      </div>`;
+  }).join("");
+}
+
+/* --- create-path (ยังใช้เป็น modal/flow entry) --- */
+function viewCreatePath() {
+  return viewDashboard();
 }
 
 /* --- name-path --- */
@@ -515,6 +670,83 @@ function shellCentered(inner) {
 }
 function shellApp(inner) {
   return `${topAppBar()}${inner}${bottomNav()}`;
+}
+
+/* Dashboard layout: sidebar (desktop) + scrollable main */
+function dashShell(content) {
+  const name = displayName() || "นักเรียน";
+  const userGrade = "ม.5"; // Phase 3: from users_profile
+  const userGpa = "3.72";  // Phase 3: from users_profile
+
+  const sideNav = (ic, label, view, active) => `
+    <button data-nav="${view}" class="dash-nav-item ${active ? "active" : ""} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all">
+      ${icon(ic, { fill: active, cls: "text-[20px]" })}
+      <span class="font-display font-bold text-[14px]">${label}</span>
+    </button>`;
+
+  const sidebar = `
+    <aside class="db-sidebar hidden md:flex flex-col border-r border-surface-variant bg-surface-container-lowest">
+      <!-- logo -->
+      <div class="px-4 py-5 border-b border-surface-variant">
+        <div class="font-display font-bold text-[18px] text-primary tracking-tight">NEXTSTEP</div>
+        <div class="text-[11px] text-on-surface-variant font-medium tracking-widest mt-0.5">CAREER PATH FINDER</div>
+      </div>
+
+      <!-- nav -->
+      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+        <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-2 pb-1">MAIN</div>
+        ${sideNav("dashboard", "Dashboard", "create-path", true)}
+        ${sideNav("map", "My Roadmap", "roadmap-list", false)}
+        ${sideNav("explore", "Path Finder", "path-finder", false)}
+        <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-4 pb-1">EXPLORE</div>
+        ${sideNav("event", "Events & Exams", "events", false)}
+        ${sideNav("newspaper", "News", "news-page", false)}
+        ${sideNav("school", "Universities", "universities", false)}
+        <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-4 pb-1">ACCOUNT</div>
+        ${sideNav("person", "Profile", "profile", false)}
+        ${sideNav("settings", "Settings", "settings", false)}
+      </nav>
+
+      <!-- user chip -->
+      <div class="p-3 border-t border-surface-variant">
+        <button data-nav="profile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container transition-all">
+          <div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center font-bold text-on-primary text-[14px] shrink-0 shadow-[0_2px_0_#96a80a]">🦉</div>
+          <div class="flex-1 min-w-0 text-left">
+            <div class="font-bold text-[13px] text-on-surface truncate">${esc(name)}</div>
+            <div class="text-[11px] text-on-surface-variant">${userGrade} · GPA ${userGpa}</div>
+          </div>
+        </button>
+      </div>
+    </aside>`;
+
+  return `
+    <div class="db-layout">
+      ${sidebar}
+      <div class="db-main flex flex-col min-h-screen">
+        <!-- mobile topbar -->
+        <header class="md:hidden sticky top-0 z-30 bg-surface border-b border-surface-variant px-4 py-3 flex items-center justify-between">
+          <span class="font-display font-bold text-[16px] text-primary">NEXTSTEP</span>
+          <button data-nav="profile" class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center shadow-[0_2px_0_#96a80a]">🦉</button>
+        </header>
+        <main class="flex-1 p-4 md:p-6 overflow-y-auto">
+          ${content}
+        </main>
+        <!-- mobile bottom nav -->
+        <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface border-t border-surface-variant flex justify-around py-1">
+          ${mobileNavItem("dashboard", "หน้าหลัก", "create-path", true)}
+          ${mobileNavItem("map", "โรดแมป", "roadmap-list", false)}
+          ${mobileNavItem("explore", "ค้นหา", "path-finder", false)}
+          ${mobileNavItem("person", "โปรไฟล์", "profile", false)}
+        </nav>
+        <div class="h-16 md:hidden"></div>
+      </div>
+    </div>`;
+}
+function mobileNavItem(ic, label, view, active) {
+  return `<button data-nav="${view}" class="flex flex-col items-center px-4 py-1 ${active ? "text-primary" : "text-on-surface-variant"}">
+    ${icon(ic, { fill: active })}
+    <span class="text-[11px] font-bold mt-0.5">${label}</span>
+  </button>`;
 }
 function backBtn(target) {
   return `<button data-back="${target}" class="mb-lg inline-flex items-center gap-1 text-on-surface-variant font-bold text-[15px]">${icon("arrow_back")} ย้อนกลับ</button>`;
