@@ -103,6 +103,18 @@ async function doLogout() {
   state.user = null; state.guest = false;
   go("auth");
 }
+
+// Google OAuth — opens popup; Supabase handles the redirect
+async function doGoogleLogin() {
+  const { error } = await db.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: { prompt: "select_account" },
+    },
+  });
+  if (error) toast("เข้าสู่ระบบด้วย Google ไม่สำเร็จ: " + error.message);
+}
 function authErr(e) {
   const m = (e?.message || "").toLowerCase();
   if (m.includes("invalid login")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
@@ -605,19 +617,37 @@ function openRound(r) {
 
 /* --- auth (Welcome screen: login OR start onboarding) --- */
 function viewAuth() {
+  const logoSvg = (typeof nexLogo === "function")
+    ? nexLogo("full", "lime", "h-10 w-auto")
+    : `<span class="font-display font-bold text-[24px] text-primary">NEX</span>`;
+
   return shellCentered(`
-    <div class="text-center mb-xl pt-4">
-      <div class="w-24 h-24 mx-auto rounded-full bg-primary-container flex items-center justify-center text-5xl shadow-[0_5px_0_#96a80a] mb-5">🦉</div>
-      <h1 class="font-display font-bold text-[30px] text-primary leading-tight tracking-tight">NEXTSTEP</h1>
-      <p class="text-on-surface-variant mt-2 text-[15px]">วางแผนสู่มหาวิทยาลัย ทีละขั้นตอน</p>
+    <div class="text-center mb-8 pt-4">
+      <!-- NEX logo: lime on dark -->
+      <div class="flex justify-center mb-5">${logoSvg}</div>
+      <p class="text-on-surface-variant text-[15px]">Career Path Finder สำหรับนักเรียน ม.3–ม.6</p>
     </div>
 
     <div class="space-y-3 mb-6">
-      <button id="au-register" class="ob-btn-primary">
-        ${icon("rocket_launch")} เริ่มต้นใช้งาน (ฟรี!)
+      <!-- Google login -->
+      <button id="au-google" class="w-full min-h-[52px] rounded-2xl border-2 border-surface-variant bg-surface-container-low text-on-surface font-display font-bold text-[16px] flex items-center justify-center gap-3 hover:border-primary transition-colors">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        เข้าสู่ระบบด้วย Google
       </button>
+
+      <div class="flex items-center gap-3 my-1">
+        <div class="flex-1 h-px bg-surface-variant"></div>
+        <span class="text-[12px] text-on-surface-variant">หรือ</span>
+        <div class="flex-1 h-px bg-surface-variant"></div>
+      </div>
+
+      <!-- Register (onboarding) -->
+      <button id="au-register" class="ob-btn-primary">
+        เริ่มต้นใช้งาน (ฟรี!)
+      </button>
+      <!-- Login toggle -->
       <button id="au-login-link" class="w-full py-3 rounded-2xl border-2 border-surface-variant text-on-surface font-display font-bold text-[16px] flex items-center justify-center gap-2 hover:border-primary transition-colors">
-        ${icon("login")} เข้าสู่ระบบ
+        มีบัญชีแล้ว — เข้าสู่ระบบ
       </button>
     </div>
 
@@ -631,12 +661,12 @@ function viewAuth() {
         <label class="ob-label">รหัสผ่าน</label>
         <div class="relative">
           <input id="au-pass" type="password" autocomplete="current-password" placeholder="••••••" class="ob-input pr-12" />
-          <button type="button" id="au-toggle-pass" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">${icon("visibility")}</button>
+          <button type="button" id="au-toggle-pass" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
+            <span class="material-symbols-outlined text-[20px]">visibility</span>
+          </button>
         </div>
       </div>
-      <button id="au-login-submit" class="ob-btn-primary">
-        ${icon("arrow_forward")} เข้าสู่ระบบ
-      </button>
+      <button id="au-login-submit" class="ob-btn-primary">เข้าสู่ระบบ</button>
     </div>
 
     <div class="text-center">
@@ -687,9 +717,9 @@ function dashShell(content) {
   const sidebar = `
     <aside class="db-sidebar hidden md:flex flex-col border-r border-surface-variant bg-surface-container-lowest">
       <!-- logo -->
-      <div class="px-4 py-5 border-b border-surface-variant">
-        <div class="font-display font-bold text-[18px] text-primary tracking-tight">NEXTSTEP</div>
-        <div class="text-[11px] text-on-surface-variant font-medium tracking-widest mt-0.5">CAREER PATH FINDER</div>
+      <div class="px-4 py-4 border-b border-surface-variant">
+        ${(typeof nexLogo === "function") ? nexLogo("full", "lime", "h-7 w-auto") : `<span class="font-display font-bold text-primary text-[18px]">NEX</span>`}
+        <div class="text-[10px] text-on-surface-variant font-medium tracking-widest mt-1">CAREER PATH FINDER</div>
       </div>
 
       <!-- nav -->
@@ -725,7 +755,7 @@ function dashShell(content) {
       <div class="db-main flex flex-col min-h-screen">
         <!-- mobile topbar -->
         <header class="md:hidden sticky top-0 z-30 bg-surface border-b border-surface-variant px-4 py-3 flex items-center justify-between">
-          <span class="font-display font-bold text-[16px] text-primary">NEXTSTEP</span>
+          ${(typeof nexLogo === "function") ? nexLogo("full", "lime", "h-6 w-auto") : `<span class="font-display font-bold text-[16px] text-primary">NEX</span>`}
           <button data-nav="profile" class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center shadow-[0_2px_0_#96a80a]">🦉</button>
         </header>
         <main class="flex-1 p-4 md:p-6 overflow-y-auto">
@@ -812,6 +842,9 @@ function wireCommon() {
 
 function wireView(v) {
   if (v === "auth") {
+    // Google OAuth
+    document.getElementById("au-google").addEventListener("click", doGoogleLogin);
+
     // register → start 6-step onboarding
     document.getElementById("au-register").addEventListener("click", () => startOnboarding());
 
