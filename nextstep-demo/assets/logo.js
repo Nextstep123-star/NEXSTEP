@@ -1,81 +1,51 @@
 // ============================================================
-// NEX logo — shared SVG helper
-// Usage:
-//   nexLogo("full", "lime")  → mark + wordmark, lime on dark
-//   nexLogo("mark", "black") → mark only, black (for favicons / small spaces)
-//   nexLogo("full", "black") → black version (on lime splash)
-//
-// Variants: "lime" | "black" | "white"
-// Types:    "full" | "mark"
+// NEX logo — precisely traced from brand identity images
+// Mark: downward arrow with 2 diagonal branches + horizontal base bars
+// Wordmark: geometric condensed bold N-E-X
 // ============================================================
 
-const NEX_COLORS = {
-  lime:  "#c2d90f",
-  black: "#16180f",
-  white: "#eef0e6",
-};
+const NEX_COLORS = { lime: "#c2d90f", black: "#16180f", white: "#eef0e6" };
 
-// Mark path — downward arrow with diagonal branches (traced from brand image)
-// ViewBox: 0 0 100 100
-const MARK_PATHS = `
-  <!-- stem -->
-  <rect x="43" y="8"  width="14" height="44"/>
-  <!-- arrowhead pointing down -->
-  <polygon points="50,88 26,58 74,58"/>
-  <!-- left diagonal branch -->
-  <rect x="10" y="28" width="38" height="12" rx="2" transform="rotate(-40 29 34)"/>
-  <!-- right diagonal branch -->
-  <rect x="52" y="28" width="38" height="12" rx="2" transform="rotate(40 71 34)"/>
-  <!-- left base notch -->
-  <rect x="8"  y="50" width="28" height="11" rx="2"/>
-  <!-- right base notch -->
-  <rect x="64" y="50" width="28" height="11" rx="2"/>
+// Mark paths (viewBox 0 0 100 100)
+// Structure: vertical stem → arrowhead → left diagonal branch → right diagonal branch → left base → right base
+const MARK = `
+  <rect x="44" y="4" width="12" height="40"/>
+  <polygon points="50,92 20,55 80,55"/>
+  <rect x="6" y="20" width="44" height="11" rx="1.5" transform="rotate(-40 28 25.5)"/>
+  <rect x="50" y="20" width="44" height="11" rx="1.5" transform="rotate(40 72 25.5)"/>
+  <rect x="5"  y="47" width="30" height="11" rx="1.5"/>
+  <rect x="65" y="47" width="30" height="11" rx="1.5"/>
 `;
 
-// NEX letterforms — geometric condensed bold (viewBox 0 0 280 100)
-const WORDMARK_PATHS = `
-  <!-- N: two verticals + diagonal stroke -->
-  <rect x="0"   y="8" width="14" height="84"/>
-  <rect x="56"  y="8" width="14" height="84"/>
-  <polygon points="0,8 14,8 70,84 70,92 56,92 0,16"/>
-  <!-- E: vertical + 3 horizontals -->
-  <rect x="88"  y="8"  width="13" height="84"/>
-  <rect x="88"  y="8"  width="58" height="14"/>
-  <rect x="88"  y="45" width="48" height="12"/>
-  <rect x="88"  y="78" width="58" height="14"/>
-  <!-- X: two diagonal strokes -->
-  <polygon points="168,8  185,8  247,92 230,92"/>
-  <polygon points="247,8  230,8  168,92 185,92"/>
+// Wordmark (viewBox 0 0 290 88)
+// N: two verticals + diagonal; E: vertical + 3 bars; X: two crossing diagonals
+const WORD = `
+  <rect x="0"  y="0" width="13" height="88"/>
+  <rect x="58" y="0" width="13" height="88"/>
+  <polygon points="0,0 13,0 71,76 71,88 58,88 0,12"/>
+  <rect x="90"  y="0"  width="12" height="88"/>
+  <rect x="90"  y="0"  width="60" height="14"/>
+  <rect x="90"  y="37" width="50" height="13"/>
+  <rect x="90"  y="74" width="60" height="14"/>
+  <polygon points="171,0 186,0 250,88 235,88"/>
+  <polygon points="250,0 235,0 171,88 186,88"/>
 `;
 
-/**
- * @param {"full"|"mark"} type
- * @param {"lime"|"black"|"white"} color
- * @param {string} [cls]  extra CSS classes on the <svg>
- * @returns {string} SVG HTML string
- */
 function nexLogo(type = "full", color = "lime", cls = "") {
   const fill = NEX_COLORS[color] || color;
   if (type === "mark") {
-    return `<svg class="${cls}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="NEX" role="img">
-      <g fill="${fill}">${MARK_PATHS}</g>
-    </svg>`;
+    return `<svg class="${cls}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="NEX" role="img" fill="${fill}">${MARK}</svg>`;
   }
-  // full: mark (100×100) + wordmark (280×100) side by side in one SVG
-  return `<svg class="${cls}" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg" aria-label="NEX" role="img">
+  return `<svg class="${cls}" viewBox="0 0 410 100" xmlns="http://www.w3.org/2000/svg" aria-label="NEX" role="img">
     <g fill="${fill}">
-      ${MARK_PATHS}
-      <g transform="translate(112,0)">${WORDMARK_PATHS}</g>
+      ${MARK}
+      <g transform="translate(118,6)">${WORD}</g>
     </g>
   </svg>`;
 }
 
-// Favicon: generate a 32×32 data-URL SVG for <link rel="icon">
-function nexFaviconHref(color = "lime", bg = "transparent") {
+function nexFaviconHref(color = "lime", bg = "#16180f") {
   const fill = NEX_COLORS[color] || color;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-    ${bg !== "transparent" ? `<rect width="100" height="100" fill="${bg}" rx="18"/>` : ""}
-    <g fill="${fill}">${MARK_PATHS}</g>
-  </svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="${bg}"/><g fill="${fill}">${MARK}</g></svg>`;
   return "data:image/svg+xml," + encodeURIComponent(svg.trim());
 }

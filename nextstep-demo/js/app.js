@@ -708,15 +708,18 @@ function dashShell(content) {
   const userGrade = "ม.5"; // Phase 3: from users_profile
   const userGpa = "3.72";  // Phase 3: from users_profile
 
-  const sideNav = (ic, label, view, active) => `
-    <button data-nav="${view}" class="dash-nav-item ${active ? "active" : ""} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all">
-      ${icon(ic, { fill: active, cls: "text-[20px]" })}
+  const cv = state.view; // current view for active highlighting
+  const sideNav = (icName, label, view) => {
+    const active = cv === view || (view === "create-path" && ["create-path","create-path-flow"].includes(cv));
+    return `<button data-nav="${view}" class="dash-nav-item ${active?"active":""} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all">
+      ${sl(icName,{size:18,cls:"shrink-0"})}
       <span class="font-display font-bold text-[14px]">${label}</span>
     </button>`;
+  };
 
   const sidebar = `
     <aside class="db-sidebar hidden md:flex flex-col border-r border-surface-variant bg-surface-container-lowest">
-      <!-- logo -->
+      <!-- NEX logo -->
       <div class="px-4 py-4 border-b border-surface-variant">
         ${(typeof nexLogo === "function") ? nexLogo("full", "lime", "h-7 w-auto") : `<span class="font-display font-bold text-primary text-[18px]">NEX</span>`}
         <div class="text-[10px] text-on-surface-variant font-medium tracking-widest mt-1">CAREER PATH FINDER</div>
@@ -725,16 +728,16 @@ function dashShell(content) {
       <!-- nav -->
       <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
         <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-2 pb-1">MAIN</div>
-        ${sideNav("dashboard", "Dashboard", "create-path", true)}
-        ${sideNav("map", "My Roadmap", "roadmap-list", false)}
-        ${sideNav("explore", "Path Finder", "path-finder", false)}
+        ${sideNav("home", "Dashboard", "create-path")}
+        ${sideNav("map", "My Roadmap", "roadmap-list")}
+        ${sideNav("route", "Path Finder", "career")}
         <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-4 pb-1">EXPLORE</div>
-        ${sideNav("event", "Events & Exams", "events", false)}
-        ${sideNav("newspaper", "News", "news-page", false)}
-        ${sideNav("school", "Universities", "universities", false)}
+        ${sideNav("calendar", "Events & Exams", "calendar")}
+        ${sideNav("news", "ข่าวสาร", "news-page")}
+        ${sideNav("school", "Universities", "universities")}
         <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-4 pb-1">ACCOUNT</div>
-        ${sideNav("person", "Profile", "profile", false)}
-        ${sideNav("settings", "Settings", "settings", false)}
+        ${sideNav("person", "Profile", "profile")}
+        ${sideNav("settings", "Settings", "settings")}
       </nav>
 
       <!-- user chip -->
@@ -763,18 +766,18 @@ function dashShell(content) {
         </main>
         <!-- mobile bottom nav -->
         <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface border-t border-surface-variant flex justify-around py-1">
-          ${mobileNavItem("dashboard", "หน้าหลัก", "create-path", true)}
-          ${mobileNavItem("map", "โรดแมป", "roadmap-list", false)}
-          ${mobileNavItem("explore", "ค้นหา", "path-finder", false)}
-          ${mobileNavItem("person", "โปรไฟล์", "profile", false)}
+          ${mobileNavItem("home", "หน้าหลัก", "create-path", cv==="create-path")}
+          ${mobileNavItem("map", "โรดแมป", "roadmap-list", cv==="roadmap-list")}
+          ${mobileNavItem("calendar", "ปฏิทิน", "calendar", cv==="calendar")}
+          ${mobileNavItem("person", "โปรไฟล์", "profile", cv==="profile")}
         </nav>
         <div class="h-16 md:hidden"></div>
       </div>
     </div>`;
 }
-function mobileNavItem(ic, label, view, active) {
+function mobileNavItem(icName, label, view, active) {
   return `<button data-nav="${view}" class="flex flex-col items-center px-4 py-1 ${active ? "text-primary" : "text-on-surface-variant"}">
-    ${icon(ic, { fill: active })}
+    ${sl(icName, {size:22, color: active?"#c2d90f":"#9aa090"})}
     <span class="text-[11px] font-bold mt-0.5">${label}</span>
   </button>`;
 }
@@ -824,12 +827,25 @@ function render() {
   if (v === "programs") return void viewPrograms();
   if (v === "cooking") return void viewCooking();
 
-  if (v === "auth") $app().innerHTML = viewAuth();
-  else if (v === "profile") $app().innerHTML = viewProfile();
-  else if (v === "create-path") $app().innerHTML = viewCreatePath();
+  // async views render themselves directly
+  if (v === "faculty")        return void viewFaculty();
+  if (v === "programs")       return void viewPrograms();
+  if (v === "cooking")        return void viewCooking();
+  if (v === "universities")   return void viewUniversities();
+  if (v === "roadmap-list")   return void viewRoadmapList();
+
+  // sync views
+  if (v === "auth")           $app().innerHTML = viewAuth();
+  else if (v === "profile")   $app().innerHTML = viewProfileFull();
+  else if (v === "settings")  $app().innerHTML = viewSettings();
+  else if (v === "news-page") $app().innerHTML = viewNews();
+  else if (v === "calendar")  $app().innerHTML = viewCalendar();
+  else if (v === "career")    $app().innerHTML = viewCareerPath();
+  else if (v === "create-path" || v === "create-path-flow") $app().innerHTML = viewDashboard();
   else if (v === "name-path") $app().innerHTML = viewNamePath();
-  else if (v === "track") $app().innerHTML = viewTrack();
-  else if (v === "roadmap") $app().innerHTML = viewRoadmap();
+  else if (v === "track")     $app().innerHTML = viewTrack();
+  else if (v === "roadmap")   $app().innerHTML = viewRoadmap();
+  else                        $app().innerHTML = viewDashboard();
 
   wireCommon();
   wireView(v);
@@ -882,12 +898,8 @@ function wireView(v) {
       state.guest = true; go("create-path");
     });
   }
-  if (v === "profile") {
-    const lo = document.getElementById("btn-logout");
-    if (lo) lo.addEventListener("click", doLogout);
-    const goAuth = document.getElementById("btn-go-auth");
-    if (goAuth) goAuth.addEventListener("click", () => go("auth"));
-  }
+  if (v === "profile")   wireProfile();
+  if (v === "settings")  wireSettings();
   if (v === "create-path") {
     document.getElementById("btn-new").addEventListener("click", () => {
       state.flow = { name: "", track: null, facultyId: null, facultyName: "", program: null };

@@ -3,9 +3,8 @@
 // Public anon/publishable key only. RLS protects PII (Phase 0).
 // ============================================================
 const NEXTSTEP_CONFIG = {
-  SUPABASE_URL: "https://gegxhtqvkmarqznplbsw.supabase.co",
-  // Publishable key (recommended for new apps; safe for client-side).
-  SUPABASE_KEY: "sb_publishable_31_cR6U0ZguiiRH5i8FbwQ_VuakoFF0",
+  SUPABASE_URL: "https://cbsteufryuiwcqbgcfle.supabase.co",
+  SUPABASE_KEY: "sb_publishable_Dh14LmruvdZCM2ConlPOVQ_G4aSxc8P",
 };
 
 // Requires @supabase/supabase-js v2 loaded from CDN (see index.html).
