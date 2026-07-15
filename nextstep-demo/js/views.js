@@ -552,7 +552,7 @@ function wireProfile() {
 }
 
 // ── Settings ──────────────────────────────────────────────────
-function viewSettings() {
+async function viewSettings() {
   const theme = localStorage.getItem("nextstep_theme") || "dark";
   const notif = localStorage.getItem("nextstep_notif") !== "false";
 
@@ -563,11 +563,12 @@ function viewSettings() {
         ${sub ? `<div class="text-[12px] text-on-surface-variant mt-0.5">${sub}</div>` : ""}
       </div>
       <button id="${id}" role="switch" aria-checked="${on}" class="relative w-12 h-6 rounded-full transition-colors ${on?"bg-primary":"bg-surface-variant"} shrink-0">
-        <span class="absolute top-0.5 transition-all w-5 h-5 rounded-full bg-on-primary shadow-sm ${on?"left-6":"left-0.5"}"></span>
+        <span class="absolute top-0.5 transition-all w-5 h-5 rounded-full bg-surface shadow-sm ${on?"left-6":"left-0.5"}"></span>
       </button>
     </div>`;
 
-  return dashShell(`
+  // BUG-7: render into #app directly, then wire
+  document.getElementById("app").innerHTML = dashShell(`
     <h1 class="font-display font-bold text-[22px] text-on-surface mb-5">ตั้งค่า</h1>
 
     <div class="space-y-2 mb-6">
@@ -591,19 +592,15 @@ function viewSettings() {
         <span class="font-bold text-[14px] text-on-surface">เวอร์ชั่น</span>
         <span class="font-mono text-[13px] text-on-surface-variant">1.0.0-beta</span>
       </div>
-      <div class="db-card p-4 flex items-center justify-between">
-        <span class="font-bold text-[14px] text-on-surface">ข้อมูลและความเป็นส่วนตัว</span>
-        ${sl("arrow_right",{size:16,color:"#9aa090"})}
-      </div>
     </div>
 
-    ${state.user ? `<button id="btn-logout" class="w-full py-3 rounded-xl border-2 border-error/40 text-error font-display font-bold flex items-center justify-center gap-2 hover:bg-error/10 transition-colors">
+    ${state.user ? `<button id="btn-logout" class="w-full py-3 rounded-xl border-2 border-surface-variant text-error font-display font-bold flex items-center justify-center gap-2 hover:border-error/40 hover:bg-error/5 transition-colors">
       ${sl("logout",{size:16})} ออกจากระบบ
-    </button>` : ""}
+    </button>` : `<button data-nav="auth" class="ob-btn-primary">${sl("arrow_right",{size:16,color:"#16180f"})} เข้าสู่ระบบ</button>`}
   `);
-}
+  wireCommon();
 
-function wireSettings() {
+  // Wire settings — DOM is ready here
   document.querySelectorAll("[data-theme]").forEach(b => b.addEventListener("click", () => {
     const t = b.dataset.theme;
     localStorage.setItem("nextstep_theme", t);
@@ -611,14 +608,10 @@ function wireSettings() {
     go("settings");
     toast(`เปลี่ยนเป็น${t==="dark"?"โหมดมืด":"โหมดสว่าง"}แล้ว`);
   }));
-
-  const notifToggle = document.getElementById("toggle-notif");
-  if (notifToggle) notifToggle.addEventListener("click", () => {
+  document.getElementById("toggle-notif")?.addEventListener("click", () => {
     const cur = localStorage.getItem("nextstep_notif") !== "false";
-    localStorage.setItem("nextstep_notif", !cur);
+    localStorage.setItem("nextstep_notif", String(!cur));
     go("settings");
   });
-
-  const lo = document.getElementById("btn-logout");
-  if (lo) lo.addEventListener("click", doLogout);
+  document.getElementById("btn-logout")?.addEventListener("click", doLogout);
 }

@@ -64,6 +64,7 @@ function fmtTuition(v) {
 let toastTimer;
 function toast(msg) {
   const t = document.getElementById("toast");
+  if (!t) { console.warn("toast:", msg); return; }  // BUG-9: null guard
   t.textContent = msg; t.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
@@ -161,13 +162,13 @@ async function fetchRoadmap(programId) {
    VIEWS
    ============================================================ */
 
-/* --- dashboard (หน้าหลัก) --- */
+/* --- dashboard (หน้าหลัก) — renders sync shell, then loads live data async --- */
 function viewDashboard() {
   const paths = getPaths();
   const mainId = getMain();
   const mainPath = paths.find((p) => p.id === mainId) || paths[0];
   const name = displayName() || "นักเรียน";
-  const gpax = state.user?.user_metadata?.gpa || "—";
+  const gpax = state._profileGpax || "—"; // filled by profile fetch cache
 
   // stat cards
   const stats = [
@@ -277,6 +278,14 @@ function viewDashboard() {
       </div>
     </div>`;
 
+  // Real date (BUG-4)
+  const now = new Date();
+  const DAYS_TH_FULL = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
+  const MONTHS_TH_FULL = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const dateStr = `${DAYS_TH_FULL[now.getDay()]} ${now.getDate()} ${MONTHS_TH_FULL[now.getMonth()]} ${now.getFullYear()+543}`;
+
+  const trackLabel = TRACKS.find(t => t.key === state.flow.track)?.label || "ยังไม่ได้เลือกสาย";
+
   return dashShell(`
     <!-- top header -->
     <div class="flex items-start justify-between mb-5 gap-4">
@@ -284,14 +293,11 @@ function viewDashboard() {
         <h1 class="font-display font-bold text-[22px] text-on-surface leading-tight">
           สวัสดี, ${esc(name)} 👋
         </h1>
-        <p class="text-[13px] text-on-surface-variant mt-0.5">
-          พฤหัสบดี 29 พ.ค. 2568 · อัปเดตล่าสุดเมื่อ 3 ชม.ที่แล้ว
-        </p>
+        <p class="text-[13px] text-on-surface-variant mt-0.5">${dateStr}</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <span class="db-badge">สาย วิทย์–คณิต</span>
-        <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold text-[13px] px-4 py-2 rounded-xl border-b-4 border-[#96a80a]">
-          + เส้นทางใหม่
+        <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold text-[13px] px-4 py-2 rounded-xl border-b-4 border-[#6b7a08] flex items-center gap-1">
+          ${sl("add",{size:15,color:"#16180f"})} เส้นทางใหม่
         </button>
       </div>
     </div>
@@ -308,12 +314,58 @@ function viewDashboard() {
     <!-- path finder banner -->
     ${banner}
 
-    <!-- bottom 2-col -->
+    <!-- bottom 2-col: live from Supabase (BUG-8) -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-      ${eventsCol}
-      ${newsCol}
+      <div class="db-card p-5">
+        <div class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมใกล้มาถึง</div>
+        <div id="dash-events" class="space-y-3">
+          ${[1,2,3].map(()=>`<div class="h-10 bg-surface-variant rounded-lg animate-pulse"></div>`).join("")}
+        </div>
+      </div>
+      <div class="db-card p-5">
+        <div class="font-display font-bold text-[14px] text-on-surface-variant mb-3">ข่าวสารการศึกษา</div>
+        <div id="dash-news" class="space-y-3">
+          ${[1,2,3].map(()=>`<div class="h-10 bg-surface-variant rounded-lg animate-pulse"></div>`).join("")}
+        </div>
+      </div>
     </div>
   `);
+}
+
+// Called after dashShell renders — loads live events+news
+async function loadDashboardLiveData() {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()+60);
+    const [{ data: evs }, { data: newsItems }] = await Promise.all([
+      db.from("events").select("title,event_date,color").gte("event_date", today).lte("event_date", cutoff.toISOString().split("T")[0]).order("event_date").limit(3),
+      db.from("news").select("title,category,published_at").eq("is_published",true).order("published_at",{ascending:false}).limit(3),
+    ]);
+    const MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+    const dotCls = {error:"bg-error",tertiary:"bg-tertiary",primary:"bg-primary",secondary:"bg-secondary"};
+
+    const evEl = document.getElementById("dash-events");
+    if (evEl) evEl.innerHTML = (evs||[]).length ? (evs||[]).map(e => {
+      const d = new Date(e.event_date); const dot = dotCls[e.color]||"bg-primary";
+      return `<div class="flex items-start gap-3">
+        <div class="w-10 shrink-0 text-center"><div class="font-mono font-bold text-[16px] text-on-surface leading-none">${d.getDate()}</div><div class="text-[11px] text-on-surface-variant">${MONTHS_TH[d.getMonth()]}</div></div>
+        <div class="flex-1 min-w-0 border-l-2 border-surface-variant pl-3">
+          <div class="font-bold text-[13px] text-on-surface leading-snug">${esc(e.title)}</div>
+          <span class="inline-block w-1.5 h-1.5 rounded-full ${dot} mr-1"></span>
+        </div>
+      </div>`;
+    }).join("") : `<p class="text-[13px] text-on-surface-variant">ไม่มีกิจกรรมใน 60 วันข้างหน้า</p>`;
+
+    const nwEl = document.getElementById("dash-news");
+    if (nwEl) nwEl.innerHTML = (newsItems||[]).length ? (newsItems||[]).map(n => {
+      const d = new Date(n.published_at);
+      return `<div class="flex gap-2 items-start">
+        <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary shrink-0"></span>
+        <div><div class="text-[13px] text-on-surface font-medium leading-snug line-clamp-2">${esc(n.title)}</div>
+        <div class="text-[11px] text-on-surface-variant mt-0.5">${d.getDate()} ${MONTHS_TH[d.getMonth()]} ${d.getFullYear()+543} · ${esc(n.category)}</div></div>
+      </div>`;
+    }).join("") : `<p class="text-[13px] text-on-surface-variant">ยังไม่มีข่าวสาร</p>`;
+  } catch { /* ถ้า network ผิดพลาด ข้ามไป */ }
 }
 
 /* horizontal step nodes for dashboard roadmap */
@@ -368,7 +420,7 @@ function viewNamePath() {
     </div>
     <input id="path-name" type="text" maxlength="40" value="${esc(state.flow.name)}"
       placeholder="ชื่อเส้นทางของคุณ"
-      class="w-full rounded-xl border-2 border-surface-variant bg-surface-container-lowest px-md py-md text-[18px] focus:border-primary focus:ring-0 mb-xl" />
+      class="ob-input text-[18px] mb-xl" />
     <button id="btn-next" class="tactile-button w-full bg-primary-container text-on-primary font-bold text-[17px] rounded-xl py-md border-b-4 border-[#96a80a] flex items-center justify-center gap-sm">
       ถัดไป ${icon("arrow_forward")}
     </button>
@@ -539,32 +591,29 @@ function viewRoadmap() {
     </button>`).join("")
     : `<div class="text-on-surface-variant text-[14px] px-1">ยังไม่มีข้อมูลรอบรับสมัครสำหรับหลักสูตรนี้</div>`;
 
-  const body = `
-    <div class="max-w-md mx-auto md:max-w-2xl px-md py-lg">
-      <!-- Header -->
-      <div class="flex justify-between items-start mb-lg">
-        <div class="min-w-0">
-          <h1 class="font-display font-extrabold text-[24px] text-primary leading-tight">${esc(state.flow.name || prog.name || "เส้นทางของคุณ")}</h1>
-          <p class="text-[13px] text-on-surface-variant mt-0.5 truncate">${esc(prog.name || "")}${prog.uni ? " · " + esc(prog.uni) : ""}</p>
-        </div>
-        <div class="shrink-0 ml-sm bg-secondary-fixed text-on-secondary-fixed-variant px-sm py-1 rounded-full font-bold text-[13px] border-2 border-[#4c4900] shadow-[0_2px_0_#4c4900]">ขั้นที่ 1/${total}</div>
+  // BUG-6: use dashShell not shellApp (old orphan topbar)
+  return dashShell(`
+    <div class="flex items-center gap-3 mb-5">
+      <button data-nav="roadmap-list" class="p-2 rounded-xl border border-surface-variant text-on-surface-variant hover:border-primary transition-colors">
+        ${sl("arrow_left",{size:18})}
+      </button>
+      <div class="min-w-0">
+        <h1 class="font-display font-bold text-[20px] text-primary leading-tight truncate">${esc(state.flow.name || prog.name || "เส้นทางของคุณ")}</h1>
+        <p class="text-[12px] text-on-surface-variant truncate">${esc(prog.name || "")}${prog.uni ? " · " + esc(prog.uni) : ""}</p>
       </div>
-
-      <!-- TCAS rounds -->
-      <h2 class="font-headline font-bold text-[15px] text-on-surface-variant mb-sm flex items-center gap-1">${icon("target", { cls: "text-[18px]" })} รอบรับสมัคร TCAS</h2>
-      <div class="flex gap-sm overflow-x-auto no-scrollbar pb-2 mb-lg">${roundPills}</div>
-
-      <!-- Journey timeline -->
-      <h2 class="font-headline font-bold text-[15px] text-on-surface-variant mb-md flex items-center gap-1">${icon("footprint", { cls: "text-[18px]" })} เส้นทางเตรียมตัว</h2>
-      <div class="relative">
-        <div class="absolute left-[23px] top-4 bottom-4 w-1 border-l-4 border-dashed border-surface-variant -z-0"></div>
-        ${nodes || `<div class="text-on-surface-variant">ยังไม่มีขั้นตอนโรดแมปสำหรับหลักสูตรนี้</div>`}
-      </div>
+      <span class="shrink-0 ml-auto text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">ขั้น 1/${total}</span>
     </div>
 
+    <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร TCAS</h2>
+    <div class="flex gap-sm overflow-x-auto no-scrollbar pb-2 mb-5">${roundPills}</div>
+
+    <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว</h2>
+    <div class="relative">
+      <div class="absolute left-[23px] top-4 bottom-4 w-0.5 bg-surface-variant"></div>
+      ${nodes || `<div class="text-on-surface-variant">ยังไม่มีขั้นตอนโรดแมปสำหรับหลักสูตรนี้</div>`}
+    </div>
     ${detailPanelSkeleton()}
-  `;
-  return shellApp(body);
+  `);
 }
 
 /* ---------- Detail panel (round วิชา + น้ำหนัก%) ---------- */
@@ -823,29 +872,26 @@ function bottomNav() {
    ============================================================ */
 function render() {
   const v = state.view;
-  if (v === "faculty") return void viewFaculty();
-  if (v === "programs") return void viewPrograms();
-  if (v === "cooking") return void viewCooking();
 
-  // async views render themselves directly
-  if (v === "faculty")        return void viewFaculty();
-  if (v === "programs")       return void viewPrograms();
-  if (v === "cooking")        return void viewCooking();
-  if (v === "universities")   return void viewUniversities();
-  if (v === "roadmap-list")   return void viewRoadmapList();
-  if (v === "news-page")      return void viewNews();
-  if (v === "calendar")       return void viewCalendar();
+  // async views — render themselves + call wireCommon inside
+  if (v === "faculty")      return void viewFaculty();
+  if (v === "programs")     return void viewPrograms();
+  if (v === "cooking")      return void viewCooking();
+  if (v === "universities") return void viewUniversities();
+  if (v === "roadmap-list") return void viewRoadmapList();
+  if (v === "news-page")    return void viewNews();
+  if (v === "calendar")     return void viewCalendar();
+  if (v === "profile")      return void viewProfileFull();   // BUG-2: async, not sync
+  if (v === "settings")     return void viewSettings();      // BUG-2: async
 
-  // sync views
-  if (v === "auth")           $app().innerHTML = viewAuth();
-  else if (v === "profile")   $app().innerHTML = viewProfileFull();
-  else if (v === "settings")  $app().innerHTML = viewSettings();
-  else if (v === "career")    $app().innerHTML = viewCareerPath();
+  // sync views — render then wire
+  if (v === "auth")         $app().innerHTML = viewAuth();
+  else if (v === "career")  $app().innerHTML = viewCareerPath();
   else if (v === "create-path" || v === "create-path-flow") $app().innerHTML = viewDashboard();
   else if (v === "name-path") $app().innerHTML = viewNamePath();
-  else if (v === "track")     $app().innerHTML = viewTrack();
-  else if (v === "roadmap")   $app().innerHTML = viewRoadmap();
-  else                        $app().innerHTML = viewDashboard();
+  else if (v === "track")   $app().innerHTML = viewTrack();
+  else if (v === "roadmap") $app().innerHTML = viewRoadmap();
+  else                      $app().innerHTML = viewDashboard();
 
   wireCommon();
   wireView(v);
@@ -898,31 +944,26 @@ function wireView(v) {
       state.guest = true; go("create-path");
     });
   }
-  if (v === "profile")   wireProfile();
-  if (v === "settings")  wireSettings();
-  if (v === "create-path") {
-    document.getElementById("btn-new").addEventListener("click", () => {
+  // profile/settings wire themselves inside their async render — skip here
+  if (v === "create-path" || v === "create-path-flow") {
+    // btn-new is always present in dashboard header now
+    document.getElementById("btn-new")?.addEventListener("click", () => {
       state.flow = { name: "", track: null, facultyId: null, facultyName: "", program: null };
       go("name-path");
     });
-    $app().querySelectorAll("[data-open]").forEach((c) => c.addEventListener("click", (e) => {
-      if (e.target.closest("[data-heart]")) return;
-      const p = getPaths().find((x) => x.id === c.dataset.open);
-      if (!p) return;
-      openSavedPath(p);
-    }));
-    $app().querySelectorAll("[data-heart]").forEach((h) => h.addEventListener("click", (e) => {
-      e.stopPropagation(); setMain(h.dataset.heart); render(); toast("ตั้งเป็นเส้นทางหลักแล้ว ❤️");
-    }));
+    document.getElementById("btn-pathfinder")?.addEventListener("click", () => go("career"));
+    // Load live events/news into dashboard after sync render
+    loadDashboardLiveData();
   }
   if (v === "name-path") {
     const next = () => {
-      const val = document.getElementById("path-name").value.trim();
+      const val = document.getElementById("path-name")?.value.trim();
+      if (!val) { toast("กรุณาตั้งชื่อเส้นทางก่อนนะ"); return; }  // BUG-10: validate
       state.flow.name = val;
       go("track");
     };
-    document.getElementById("btn-next").addEventListener("click", next);
-    document.getElementById("path-name").addEventListener("keydown", (e) => { if (e.key === "Enter") next(); });
+    document.getElementById("btn-next")?.addEventListener("click", next);
+    document.getElementById("path-name")?.addEventListener("keydown", (e) => { if (e.key === "Enter") next(); });
   }
   if (v === "track") {
     $app().querySelectorAll("[data-track]").forEach((b) => b.addEventListener("click", () => {
