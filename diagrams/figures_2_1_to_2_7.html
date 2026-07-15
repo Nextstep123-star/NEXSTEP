@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<title>NEXTSTEP Figures 2.1–2.7</title>
+<style>
+  body { font-family: "TH Sarabun New", "Sarabun", sans-serif; background:#fff; color:#111; margin:0; padding:20px; }
+  .fig { page-break-inside:avoid; margin-bottom:48px; text-align:center; }
+  .fig-caption { font-size:14px; margin-top:10px; font-weight:bold; }
+  svg text { font-family: "TH Sarabun New","Sarabun",sans-serif; }
+  @media print { body{padding:0} .fig{margin-bottom:32px} }
+</style>
+</head>
+<body>
+
+<!-- รูปที่ 2.1 -->
+<div class="fig">
+<svg width="520" height="300" viewBox="0 0 520 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#333"/>
+    </marker>
+  </defs>
+  <!-- Nodes -->
+  <circle cx="100" cy="150" r="38" fill="#c2d90f" stroke="#5a6a00" stroke-width="2"/>
+  <text x="100" y="146" text-anchor="middle" font-size="13" font-weight="bold">Node A</text>
+  <text x="100" y="162" text-anchor="middle" font-size="11" fill="#333">id: "A"</text>
+
+  <circle cx="260" cy="80" r="38" fill="#c2d90f" stroke="#5a6a00" stroke-width="2"/>
+  <text x="260" y="76" text-anchor="middle" font-size="13" font-weight="bold">Node B</text>
+  <text x="260" y="92" text-anchor="middle" font-size="11" fill="#333">id: "B"</text>
+
+  <circle cx="260" cy="220" r="38" fill="#c2d90f" stroke="#5a6a00" stroke-width="2"/>
+  <text x="260" y="216" text-anchor="middle" font-size="13" font-weight="bold">Node C</text>
+  <text x="260" y="232" text-anchor="middle" font-size="11" fill="#333">id: "C"</text>
+
+  <circle cx="420" cy="150" r="38" fill="#c2d90f" stroke="#5a6a00" stroke-width="2"/>
+  <text x="420" y="146" text-anchor="middle" font-size="13" font-weight="bold">Node D</text>
+  <text x="420" y="162" text-anchor="middle" font-size="11" fill="#333">id: "D"</text>
+
+  <!-- Edges -->
+  <line x1="136" y1="133" x2="222" y2="96" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="170" y="107" font-size="11" fill="#555" text-anchor="middle">Edge (A→B)</text>
+
+  <line x1="136" y1="167" x2="222" y2="204" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="170" y="200" font-size="11" fill="#555" text-anchor="middle">Edge (A→C)</text>
+
+  <line x1="296" y1="96" x2="384" y2="133" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="348" y="107" font-size="11" fill="#555" text-anchor="middle">Edge (B→D)</text>
+
+  <line x1="296" y1="204" x2="384" y2="167" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="348" y="200" font-size="11" fill="#555" text-anchor="middle">Edge (C→D)</text>
+
+  <!-- Legend -->
+  <circle cx="30" cy="270" r="10" fill="#c2d90f" stroke="#5a6a00" stroke-width="1.5"/>
+  <text x="48" y="274" font-size="12">Node (จุดยอด)</text>
+  <line x1="160" y1="270" x2="200" y2="270" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="208" y="274" font-size="12">Edge (เส้นเชื่อม)</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.1 องค์ประกอบของ Graph Data Structure (Node และ Edge)</div>
+</div>
+
+<!-- รูปที่ 2.2 -->
+<div class="fig">
+<svg width="600" height="320" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr2" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#1a5c9a"/>
+    </marker>
+  </defs>
+  <!-- University -->
+  <rect x="20" y="120" width="110" height="60" rx="10" fill="#dbeafe" stroke="#1a5c9a" stroke-width="2"/>
+  <text x="75" y="145" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a5c9a">University</text>
+  <text x="75" y="163" text-anchor="middle" font-size="11" fill="#1a5c9a">จุฬาลงกรณ์</text>
+
+  <!-- Program -->
+  <rect x="190" y="60" width="120" height="60" rx="10" fill="#d1fae5" stroke="#065f46" stroke-width="2"/>
+  <text x="250" y="85" text-anchor="middle" font-size="12" font-weight="bold" fill="#065f46">Program</text>
+  <text x="250" y="103" text-anchor="middle" font-size="11" fill="#065f46">วิศวกรรมคอม</text>
+
+  <rect x="190" y="185" width="120" height="60" rx="10" fill="#d1fae5" stroke="#065f46" stroke-width="2"/>
+  <text x="250" y="210" text-anchor="middle" font-size="12" font-weight="bold" fill="#065f46">Program</text>
+  <text x="250" y="228" text-anchor="middle" font-size="11" fill="#065f46">วิทยาการข้อมูล</text>
+
+  <!-- Career -->
+  <rect x="390" y="40" width="110" height="55" rx="10" fill="#fef9c3" stroke="#854d0e" stroke-width="2"/>
+  <text x="445" y="63" text-anchor="middle" font-size="12" font-weight="bold" fill="#854d0e">Career</text>
+  <text x="445" y="81" text-anchor="middle" font-size="11" fill="#854d0e">Software Eng.</text>
+
+  <rect x="390" y="130" width="110" height="55" rx="10" fill="#fef9c3" stroke="#854d0e" stroke-width="2"/>
+  <text x="445" y="153" text-anchor="middle" font-size="12" font-weight="bold" fill="#854d0e">Career</text>
+  <text x="445" y="171" text-anchor="middle" font-size="11" fill="#854d0e">Data Scientist</text>
+
+  <rect x="390" y="220" width="110" height="55" rx="10" fill="#fef9c3" stroke="#854d0e" stroke-width="2"/>
+  <text x="445" y="243" text-anchor="middle" font-size="12" font-weight="bold" fill="#854d0e">Roadmap</text>
+  <text x="445" y="261" text-anchor="middle" font-size="11" fill="#854d0e">6 ขั้นตอน</text>
+
+  <!-- Edges -->
+  <line x1="130" y1="145" x2="188" y2="98" stroke="#1a5c9a" stroke-width="1.8" marker-end="url(#arr2)" stroke-dasharray="5,3"/>
+  <line x1="130" y1="158" x2="188" y2="210" stroke="#1a5c9a" stroke-width="1.8" marker-end="url(#arr2)" stroke-dasharray="5,3"/>
+  <line x1="310" y1="80" x2="388" y2="70" stroke="#065f46" stroke-width="1.8" marker-end="url(#arr2)"/>
+  <line x1="310" y1="88" x2="388" y2="150" stroke="#065f46" stroke-width="1.8" marker-end="url(#arr2)"/>
+  <line x1="310" y1="215" x2="388" y2="165" stroke="#065f46" stroke-width="1.8" marker-end="url(#arr2)"/>
+  <line x1="310" y1="222" x2="388" y2="248" stroke="#065f46" stroke-width="1.8" marker-end="url(#arr2)"/>
+
+  <!-- Labels -->
+  <text x="300" y="302" text-anchor="middle" font-size="12" fill="#555">University → Program → Career → Roadmap</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.2 ตัวอย่างกราฟความสัมพันธ์ของ NEXTSTEP (University → Program → Career → Roadmap)</div>
+</div>
+
+<!-- รูปที่ 2.3 -->
+<div class="fig">
+<svg width="560" height="200" viewBox="0 0 560 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr3" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#555"/>
+    </marker>
+  </defs>
+  <!-- Locked -->
+  <rect x="20" y="60" width="130" height="80" rx="12" fill="#e5e7eb" stroke="#9ca3af" stroke-width="2.5"/>
+  <text x="85" y="95" text-anchor="middle" font-size="14" font-weight="bold" fill="#6b7280">🔒 Locked</text>
+  <text x="85" y="115" text-anchor="middle" font-size="11" fill="#9ca3af">ยังเข้าไม่ถึง</text>
+
+  <!-- Arrow 1 -->
+  <line x1="152" y1="100" x2="198" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arr3)"/>
+  <text x="175" y="90" text-anchor="middle" font-size="10" fill="#555">เลื่อนชั้น</text>
+
+  <!-- In Progress -->
+  <rect x="200" y="60" width="150" height="80" rx="12" fill="#fef3c7" stroke="#f59e0b" stroke-width="2.5"/>
+  <text x="275" y="95" text-anchor="middle" font-size="14" font-weight="bold" fill="#b45309">⚡ In Progress</text>
+  <text x="275" y="115" text-anchor="middle" font-size="11" fill="#b45309">กำลังดำเนินการ</text>
+
+  <!-- Arrow 2 -->
+  <line x1="352" y1="100" x2="398" y2="100" stroke="#555" stroke-width="2" marker-end="url(#arr3)"/>
+  <text x="375" y="90" text-anchor="middle" font-size="10" fill="#555">ทำสำเร็จ</text>
+
+  <!-- Completed -->
+  <rect x="400" y="60" width="140" height="80" rx="12" fill="#d1fae5" stroke="#10b981" stroke-width="2.5"/>
+  <text x="470" y="95" text-anchor="middle" font-size="14" font-weight="bold" fill="#065f46">✅ Completed</text>
+  <text x="470" y="115" text-anchor="middle" font-size="11" fill="#065f46">เสร็จสมบูรณ์</text>
+
+  <!-- State labels -->
+  <text x="280" y="175" text-anchor="middle" font-size="12" fill="#555">Node State Diagram — สถานะของแต่ละขั้นตอนใน Roadmap</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.3 Node State Diagram (Locked → In Progress → Completed)</div>
+</div>
+
+<!-- รูปที่ 2.4 -->
+<div class="fig">
+<svg width="580" height="340" viewBox="0 0 580 340" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr4" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#374151"/>
+    </marker>
+  </defs>
+  <!-- Input -->
+  <rect x="20" y="130" width="110" height="70" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="75" y="160" text-anchor="middle" font-size="12" font-weight="bold" fill="#5b21b6">INPUT</text>
+  <text x="75" y="176" text-anchor="middle" font-size="10" fill="#5b21b6">สาย / คณะ</text>
+  <text x="75" y="190" text-anchor="middle" font-size="10" fill="#5b21b6">มหาวิทยาลัย</text>
+
+  <line x1="132" y1="165" x2="168" y2="165" stroke="#374151" stroke-width="2" marker-end="url(#arr4)"/>
+
+  <!-- Query DB -->
+  <rect x="170" y="130" width="120" height="70" rx="10" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="230" y="158" text-anchor="middle" font-size="12" font-weight="bold" fill="#1d4ed8">Query DB</text>
+  <text x="230" y="175" text-anchor="middle" font-size="10" fill="#1d4ed8">กรอง Programs</text>
+  <text x="230" y="191" text-anchor="middle" font-size="10" fill="#1d4ed8">ตาม Track Flag</text>
+
+  <line x1="292" y1="165" x2="328" y2="165" stroke="#374151" stroke-width="2" marker-end="url(#arr4)"/>
+
+  <!-- Build Graph -->
+  <rect x="330" y="130" width="120" height="70" rx="10" fill="#d1fae5" stroke="#065f46" stroke-width="2"/>
+  <text x="390" y="158" text-anchor="middle" font-size="12" font-weight="bold" fill="#065f46">Build Graph</text>
+  <text x="390" y="175" text-anchor="middle" font-size="10" fill="#065f46">สร้าง Node</text>
+  <text x="390" y="191" text-anchor="middle" font-size="10" fill="#065f46">Program + Steps</text>
+
+  <line x1="452" y1="165" x2="488" y2="165" stroke="#374151" stroke-width="2" marker-end="url(#arr4)"/>
+
+  <!-- Output -->
+  <rect x="490" y="130" width="76" height="70" rx="10" fill="#fef9c3" stroke="#854d0e" stroke-width="2"/>
+  <text x="528" y="158" text-anchor="middle" font-size="12" font-weight="bold" fill="#854d0e">OUTPUT</text>
+  <text x="528" y="175" text-anchor="middle" font-size="10" fill="#854d0e">Roadmap</text>
+  <text x="528" y="191" text-anchor="middle" font-size="10" fill="#854d0e">Timeline</text>
+
+  <!-- Sub-steps below Query DB -->
+  <rect x="170" y="240" width="120" height="50" rx="8" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+  <text x="230" y="262" text-anchor="middle" font-size="11" fill="#0369a1">Supabase</text>
+  <text x="230" y="278" text-anchor="middle" font-size="11" fill="#0369a1">programs table</text>
+  <line x1="230" y1="240" x2="230" y2="202" stroke="#0369a1" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
+
+  <rect x="330" y="240" width="120" height="50" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+  <text x="390" y="262" text-anchor="middle" font-size="11" fill="#059669">program_roadmaps</text>
+  <text x="390" y="278" text-anchor="middle" font-size="11" fill="#059669">+ admission_rounds</text>
+  <line x1="390" y1="240" x2="390" y2="202" stroke="#059669" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
+
+  <text x="290" y="320" text-anchor="middle" font-size="12" fill="#555">Path Generator — กระบวนการสร้าง Roadmap จากข้อมูลในฐานข้อมูล</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.4 แผนภาพการทำงานของ Path Generator</div>
+</div>
+
+<!-- รูปที่ 2.5 -->
+<div class="fig">
+<svg width="580" height="300" viewBox="0 0 580 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr5" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#374151"/>
+    </marker>
+  </defs>
+  <!-- Steps as flow -->
+  <!-- 1 -->
+  <rect x="10" y="110" width="90" height="65" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="55" y="135" text-anchor="middle" font-size="11" font-weight="bold" fill="#5b21b6">ขั้นที่ 1</text>
+  <text x="55" y="151" text-anchor="middle" font-size="10" fill="#5b21b6">ผู้ใช้ตอบ</text>
+  <text x="55" y="165" text-anchor="middle" font-size="10" fill="#5b21b6">คำถาม 5 ข้อ</text>
+  <line x1="102" y1="142" x2="128" y2="142" stroke="#374151" stroke-width="2" marker-end="url(#arr5)"/>
+
+  <!-- 2 -->
+  <rect x="130" y="110" width="100" height="65" rx="10" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="180" y="135" text-anchor="middle" font-size="11" font-weight="bold" fill="#1d4ed8">ขั้นที่ 2</text>
+  <text x="180" y="151" text-anchor="middle" font-size="10" fill="#1d4ed8">วิเคราะห์</text>
+  <text x="180" y="165" text-anchor="middle" font-size="10" fill="#1d4ed8">Track + Interest</text>
+  <line x1="232" y1="142" x2="258" y2="142" stroke="#374151" stroke-width="2" marker-end="url(#arr5)"/>
+
+  <!-- 3 -->
+  <rect x="260" y="110" width="100" height="65" rx="10" fill="#d1fae5" stroke="#059669" stroke-width="2"/>
+  <text x="310" y="135" text-anchor="middle" font-size="11" font-weight="bold" fill="#059669">ขั้นที่ 3</text>
+  <text x="310" y="151" text-anchor="middle" font-size="10" fill="#059669">Match Programs</text>
+  <text x="310" y="165" text-anchor="middle" font-size="10" fill="#059669">จาก DB</text>
+  <line x1="362" y1="142" x2="388" y2="142" stroke="#374151" stroke-width="2" marker-end="url(#arr5)"/>
+
+  <!-- 4 -->
+  <rect x="390" y="110" width="100" height="65" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="440" y="135" text-anchor="middle" font-size="11" font-weight="bold" fill="#b45309">ขั้นที่ 4</text>
+  <text x="440" y="151" text-anchor="middle" font-size="10" fill="#b45309">Rank</text>
+  <text x="440" y="165" text-anchor="middle" font-size="10" fill="#b45309">Results</text>
+  <line x1="492" y1="142" x2="518" y2="142" stroke="#374151" stroke-width="2" marker-end="url(#arr5)"/>
+
+  <!-- 5 -->
+  <rect x="520" y="110" width="52" height="65" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="546" y="140" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626">แสดง</text>
+  <text x="546" y="158" text-anchor="middle" font-size="10" fill="#dc2626">ผล</text>
+
+  <!-- Questions below -->
+  <rect x="10" y="215" width="570" height="48" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="295" y="236" text-anchor="middle" font-size="11" fill="#374151">คำถาม Path Finder: สายการเรียน / คณะที่สนใจ / ภูมิภาค / ค่าเรียน / ระดับ GPAX</text>
+  <text x="295" y="254" text-anchor="middle" font-size="11" fill="#6b7280">(ตอบทีละขั้น — Conversational UI)</text>
+
+  <text x="295" y="288" text-anchor="middle" font-size="12" fill="#555">Path Finder — ระบบค้นหาเส้นทางการศึกษาที่เหมาะสมจากคำถามเชิงสนทนา</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.5 แผนภาพการทำงานของ Path Finder</div>
+</div>
+
+<!-- รูปที่ 2.6 -->
+<div class="fig">
+<svg width="580" height="320" viewBox="0 0 580 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr6" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#c2d90f"/>
+    </marker>
+    <marker id="arr6g" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0,10 3.5,0 7" fill="#9ca3af"/>
+    </marker>
+  </defs>
+  <!-- Graph nodes — BFS/DFS traversal example -->
+  <!-- Root: Student -->
+  <circle cx="290" cy="40" r="32" fill="#1a1a1a" stroke="#c2d90f" stroke-width="3"/>
+  <text x="290" y="36" text-anchor="middle" font-size="11" fill="#c2d90f" font-weight="bold">Student</text>
+  <text x="290" y="52" text-anchor="middle" font-size="10" fill="#9ca3af">ม.6 วิทย์</text>
+
+  <!-- Level 2: Programs -->
+  <circle cx="120" cy="150" r="30" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+  <text x="120" y="146" text-anchor="middle" font-size="10" fill="#93c5fd">วิศวกรรม</text>
+  <text x="120" y="162" text-anchor="middle" font-size="10" fill="#93c5fd">คอมพิวเตอร์</text>
+
+  <circle cx="290" cy="150" r="30" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+  <text x="290" y="146" text-anchor="middle" font-size="10" fill="#93c5fd">วิทยาศาสตร์</text>
+  <text x="290" y="162" text-anchor="middle" font-size="10" fill="#93c5fd">ข้อมูล</text>
+
+  <circle cx="460" cy="150" r="30" fill="#374151" stroke="#9ca3af" stroke-width="2" opacity="0.5"/>
+  <text x="460" y="150" text-anchor="middle" font-size="10" fill="#9ca3af">แพทย์</text>
+  <text x="460" y="165" text-anchor="middle" font-size="9" fill="#9ca3af">(ไม่ตรงสาย)</text>
+
+  <!-- Level 3: Careers -->
+  <circle cx="80" cy="260" r="26" fill="#14532d" stroke="#22c55e" stroke-width="2"/>
+  <text x="80" y="256" text-anchor="middle" font-size="10" fill="#86efac">Software</text>
+  <text x="80" y="270" text-anchor="middle" font-size="10" fill="#86efac">Engineer</text>
+
+  <circle cx="200" cy="260" r="26" fill="#14532d" stroke="#22c55e" stroke-width="2"/>
+  <text x="200" y="256" text-anchor="middle" font-size="10" fill="#86efac">Data</text>
+  <text x="200" y="270" text-anchor="middle" font-size="10" fill="#86efac">Scientist</text>
+
+  <circle cx="340" cy="260" r="26" fill="#14532d" stroke="#22c55e" stroke-width="2"/>
+  <text x="340" y="256" text-anchor="middle" font-size="10" fill="#86efac">ML</text>
+  <text x="340" y="270" text-anchor="middle" font-size="10" fill="#86efac">Engineer</text>
+
+  <!-- Traversal path (highlighted) -->
+  <line x1="270" y1="65" x2="145" y2="125" stroke="#c2d90f" stroke-width="2.5" marker-end="url(#arr6)"/>
+  <line x1="290" y1="72" x2="290" y2="120" stroke="#c2d90f" stroke-width="2.5" marker-end="url(#arr6)"/>
+  <line x1="310" y1="65" x2="440" y2="125" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arr6g)" opacity="0.5"/>
+
+  <line x1="105" y1="177" x2="90" y2="236" stroke="#c2d90f" stroke-width="2.5" marker-end="url(#arr6)"/>
+  <line x1="128" y1="177" x2="188" y2="236" stroke="#c2d90f" stroke-width="2.5" marker-end="url(#arr6)"/>
+  <line x1="290" y1="180" x2="328" y2="236" stroke="#c2d90f" stroke-width="2.5" marker-end="url(#arr6)"/>
+
+  <!-- Labels -->
+  <text x="160" y="108" font-size="10" fill="#c2d90f">✓ ตรงกับ Track</text>
+  <text x="470" y="200" font-size="10" fill="#9ca3af">✗ ข้ามผ่าน</text>
+  <text x="290" y="308" text-anchor="middle" font-size="12" fill="#555">Graph Traversal — เส้นสีเหลืองคือเส้นทางที่ระบบเลือก (BFS)</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.6 ตัวอย่าง Graph Traversal ในการค้นหาเส้นทางการศึกษา</div>
+</div>
+
+<!-- รูปที่ 2.7 -->
+<div class="fig">
+<svg width="580" height="360" viewBox="0 0 580 360" xmlns="http://www.w3.org/2000/svg">
+  <!-- Timeline vertical -->
+  <line x1="80" y1="30" x2="80" y2="330" stroke="#3a3f34" stroke-width="3" stroke-dasharray="6,4"/>
+
+  <!-- Steps -->
+  <!-- Step 1 -->
+  <circle cx="80" cy="60" r="22" fill="#c2d90f" stroke="#6b7a08" stroke-width="2.5"/>
+  <text x="80" y="56" text-anchor="middle" font-size="12" font-weight="bold" fill="#16180f">1</text>
+  <text x="80" y="70" text-anchor="middle" font-size="10" fill="#16180f">ม.4</text>
+  <rect x="115" y="42" width="440" height="40" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="135" y="60" font-size="12" font-weight="bold" fill="#065f46">เลือกสายการเรียน</text>
+  <text x="135" y="76" font-size="11" fill="#16a34a">ลงทะเบียน myTCAS | เลือกสายวิทย์-คณิต</text>
+
+  <!-- Step 2 -->
+  <circle cx="80" cy="140" r="22" fill="#c2d90f" stroke="#6b7a08" stroke-width="2.5"/>
+  <text x="80" y="136" text-anchor="middle" font-size="12" font-weight="bold" fill="#16180f">2</text>
+  <text x="80" y="152" text-anchor="middle" font-size="10" fill="#16180f">ม.4-5</text>
+  <rect x="115" y="122" width="440" height="40" rx="8" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+  <text x="135" y="140" font-size="12" font-weight="bold" fill="#c2410c">สะสม Portfolio</text>
+  <text x="135" y="156" font-size="11" fill="#ea580c">โครงงาน | กิจกรรม | ค่ายวิทยาศาสตร์</text>
+
+  <!-- Step 3 (current) -->
+  <circle cx="80" cy="220" r="24" fill="#c2d90f" stroke="#c2d90f" stroke-width="3"/>
+  <circle cx="80" cy="220" r="32" fill="none" stroke="#c2d90f" stroke-width="2" opacity="0.4"/>
+  <text x="80" y="216" text-anchor="middle" font-size="12" font-weight="bold" fill="#16180f">3</text>
+  <text x="80" y="230" text-anchor="middle" font-size="9" fill="#16180f">ม.5 ปัจจุบัน</text>
+  <rect x="115" y="200" width="440" height="42" rx="8" fill="#16180f" stroke="#c2d90f" stroke-width="2"/>
+  <text x="135" y="218" font-size="12" font-weight="bold" fill="#c2d90f">⚡ เตรียมสอบ TPAT3 ← ปัจจุบัน</text>
+  <text x="135" y="234" font-size="11" fill="#9aa090">ลงทะเบียนสอบ | Mock Test | ติวเข้ม</text>
+
+  <!-- Step 4 (locked) -->
+  <circle cx="80" cy="300" r="22" fill="#3a3f34" stroke="#6b7280" stroke-width="2" opacity="0.6"/>
+  <text x="80" y="296" text-anchor="middle" font-size="14" fill="#9ca3af">🔒</text>
+  <text x="80" y="314" text-anchor="middle" font-size="9" fill="#6b7280">ม.6</text>
+  <rect x="115" y="282" width="440" height="40" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5" opacity="0.7"/>
+  <text x="135" y="300" font-size="12" fill="#9ca3af">สมัคร TCAS รอบ 1 (ล็อก — ยังไม่ถึงเวลา)</text>
+  <text x="135" y="316" font-size="11" fill="#c4c9d0">ต.ค. 68 — ยื่น Portfolio + สัมภาษณ์</text>
+
+  <text x="290" y="348" text-anchor="middle" font-size="12" fill="#555">Roadmap หลักสูตรวิศวกรรมคอมพิวเตอร์ — จุฬาลงกรณ์มหาวิทยาลัย</text>
+</svg>
+<div class="fig-caption">รูปที่ 2.7 ตัวอย่าง Roadmap ที่สร้างจากผลการวิเคราะห์ของระบบ</div>
+</div>
+
+</body>
+</html>

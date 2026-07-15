@@ -195,9 +195,14 @@ input:-webkit-autofill:active {
   -webkit-text-fill-color: #6b7a08;
   opacity: 1;
 }
-.ob-input:focus {
-  border-color: #c2d90f;
-  box-shadow: 0 0 0 3px rgba(194,217,15,.18), 0 1px 3px rgba(0,0,0,.3) inset;
+/* override @tailwindcss/forms blue focus ring → lime (needs !important) */
+.ob-input:focus,
+input.ob-input:focus,
+select.ob-input:focus {
+  border-color: #c2d90f !important;
+  box-shadow: 0 0 0 3px rgba(194,217,15,.22), 0 1px 3px rgba(0,0,0,.3) inset !important;
+  outline: none !important;
+  --tw-ring-color: transparent !important;
   background: #23261c;
 }
 .ob-input:not(:placeholder-shown) {

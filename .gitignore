@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+screenshots/
+*.log
+
+# dev/admin scripts containing Supabase secrets — never commit
+migrate.mjs
+fix_encoding.mjs
+
