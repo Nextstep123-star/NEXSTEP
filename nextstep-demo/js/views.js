@@ -380,111 +380,175 @@ async function loadRoadmapIntoContainer(path) {
   }
 }
 
-// ── Profile ───────────────────────────────────────────────────
-function viewProfileFull() {
+// ── Profile — ดึงจาก users_profile + user_preferences ────────
+async function viewProfileFull() {
   const loggedIn = !!state.user;
-  const name = displayName();
-  const email = state.user?.email || "";
-  const avatarUrl = state._avatarUrl || null;
-  const avatarEl = avatarUrl
-    ? `<img src="${esc(avatarUrl)}" alt="avatar" class="w-full h-full object-cover"/>`
-    : `<span class="font-display font-bold text-[28px] text-on-primary">${name.charAt(0).toUpperCase()||"?"}</span>`;
 
-  return dashShell(`
+  // Show skeleton immediately
+  document.getElementById("app").innerHTML = dashShell(`
     <div class="max-w-md mx-auto">
       <h1 class="font-display font-bold text-[22px] text-on-surface mb-5">โปรไฟล์</h1>
-
-      <!-- Avatar -->
-      <div class="flex flex-col items-center mb-6">
-        <div class="relative">
-          <div class="w-24 h-24 rounded-full bg-primary-container shadow-[0_4px_0_#96a80a] overflow-hidden flex items-center justify-center">
-            ${avatarEl}
-          </div>
-          ${loggedIn ? `<label for="avatar-input" class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-surface-container-high border-2 border-surface-variant flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
-            ${sl("camera",{size:14,color:"#9aa090"})}
-          </label>
-          <input id="avatar-input" type="file" accept="image/*" class="hidden"/>` : ""}
-        </div>
-        <h2 class="font-display font-bold text-[20px] text-on-surface mt-3">${loggedIn ? esc(name) : "โหมดผู้เยี่ยมชม"}</h2>
-        ${loggedIn ? `<p class="text-[13px] text-on-surface-variant">${esc(email)}</p>` : ""}
+      <div id="profile-body" class="flex justify-center py-8">
+        <div class="cook-spinner w-10 h-10" style="width:40px;height:40px;border-width:4px"></div>
       </div>
-
-      ${loggedIn ? `
-        <!-- Profile form -->
-        <div class="space-y-3 mb-6">
-          ${profileField("ชื่อเล่น", "profile-name", state.user?.user_metadata?.first_name||"", "text")}
-          ${profileField("ระดับชั้น", "profile-grade", "", "text", ["ม.3","ม.4","ม.5","ม.6"])}
-          ${profileField("โรงเรียน", "profile-school", state.user?.user_metadata?.school_name||"", "text")}
-          ${profileField("GPAX ล่าสุด", "profile-gpax", state.user?.user_metadata?.gpa||"", "number")}
-        </div>
-        <button id="btn-save-profile" class="tactile-button w-full bg-primary-container text-on-primary font-display font-bold py-3 rounded-xl border-b-4 border-[#96a80a] flex items-center justify-center gap-2 mb-4">
-          ${sl("check",{size:16,color:"#16180f"})} บันทึก
-        </button>
-        <button id="btn-logout" class="w-full py-3 rounded-xl border-2 border-error/40 text-error font-display font-bold flex items-center justify-center gap-2 hover:bg-error/10 transition-colors">
-          ${sl("logout",{size:16})} ออกจากระบบ
-        </button>
-      ` : `
-        <button data-nav="auth" class="tactile-button w-full bg-primary-container text-on-primary font-display font-bold py-3 rounded-xl border-b-4 border-[#96a80a] flex items-center justify-center gap-2">
-          ${sl("arrow_right",{size:16,color:"#16180f"})} เข้าสู่ระบบ / สมัครสมาชิก
-        </button>
-      `}
     </div>
   `);
+  wireCommon();
+
+  if (!loggedIn) {
+    document.getElementById("profile-body").innerHTML = `
+      <div class="text-center py-8">
+        <div class="text-5xl mb-4">👤</div>
+        <h2 class="font-display font-bold text-[20px] text-on-surface mb-2">โหมดผู้เยี่ยมชม</h2>
+        <p class="text-on-surface-variant mb-6">เข้าสู่ระบบเพื่อบันทึกข้อมูลและเส้นทาง</p>
+        <button data-nav="auth" class="tactile-button bg-primary-container text-on-primary font-display font-bold px-6 py-3 rounded-xl border-b-4 border-[#96a80a]">
+          เข้าสู่ระบบ / สมัครสมาชิก
+        </button>
+      </div>`;
+    wireCommon();
+    return;
+  }
+
+  // Fetch profile from DB (source of truth — not user_metadata)
+  let profile = {};
+  let prefs = {};
+  try {
+    const [{ data: p }, { data: pr }] = await Promise.all([
+      db.from("users_profile").select("*").eq("id", state.user.id).maybeSingle(),
+      db.from("user_preferences").select("*").eq("user_id", state.user.id).maybeSingle(),
+    ]);
+    profile = p || {};
+    prefs = pr || {};
+  } catch { }
+
+  const name = profile.first_name || state.user?.user_metadata?.first_name || "";
+  const email = state.user.email || "";
+  const avatarUrl = state._avatarUrl || null;
+  const initial = (name || email).charAt(0).toUpperCase() || "?";
+
+  document.getElementById("profile-body").innerHTML = `
+    <!-- Avatar -->
+    <div class="flex flex-col items-center mb-8">
+      <div class="relative mb-3">
+        <div class="w-24 h-24 rounded-full bg-primary-container shadow-[0_4px_0_#6b7a08] overflow-hidden flex items-center justify-center">
+          ${avatarUrl
+            ? `<img src="${esc(avatarUrl)}" alt="avatar" class="w-full h-full object-cover"/>`
+            : `<span class="font-display font-bold text-[32px] text-on-primary">${esc(initial)}</span>`}
+        </div>
+        <label for="avatar-input" class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-surface-container-high border-2 border-surface-variant flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
+          ${sl("camera",{size:14,color:"#9aa090"})}
+        </label>
+        <input id="avatar-input" type="file" accept="image/*" class="hidden"/>
+      </div>
+      <h2 class="font-display font-bold text-[20px] text-on-surface">${esc(name || "ไม่ระบุชื่อ")}</h2>
+      <p class="text-[13px] text-on-surface-variant">${esc(email)}</p>
+    </div>
+
+    <!-- Editable fields — pre-filled from users_profile (onboarding data) -->
+    <div class="space-y-4 mb-6">
+      ${pf("ชื่อเล่น", "profile-name", "text", profile.first_name || "", "เช่น น้องเน็กซ์", "person")}
+      ${pf("ระดับชั้น", "profile-grade", "select", profile.education_level || "", "", "school", ["ม.3","ม.4","ม.5","ม.6"])}
+      ${pf("โรงเรียน", "profile-school", "text", profile.school_name || "", "ชื่อโรงเรียน", "search")}
+      ${pf("GPAX ล่าสุด", "profile-gpax", "number", profile.gpa != null ? profile.gpa : "", "เช่น 3.50", "chart")}
+    </div>
+
+    <button id="btn-save-profile" class="tactile-button w-full bg-primary-container text-on-primary font-display font-bold py-3.5 rounded-xl border-b-4 border-[#6b7a08] flex items-center justify-center gap-2 mb-3">
+      ${sl("check",{size:18,color:"#16180f"})} บันทึกข้อมูล
+    </button>
+    <button id="btn-logout" class="w-full py-3 rounded-xl border-2 border-surface-variant text-error font-display font-bold flex items-center justify-center gap-2 hover:border-error/40 hover:bg-error/5 transition-colors">
+      ${sl("logout",{size:16})} ออกจากระบบ
+    </button>
+  `;
+  wireCommon();
+  wireProfile();
 }
 
-function profileField(label, id, value, type, options) {
-  if (options) {
-    return `<div>
-      <label class="ob-label">${label}</label>
-      <select id="${id}" class="ob-input">
-        <option value="">— เลือก —</option>
-        ${options.map(o=>`<option value="${o}" ${o===value?"selected":""}>${o}</option>`).join("")}
-      </select>
+// field builder — icon prefix, lime focus ring, shows filled value
+function pf(label, id, type, value, placeholder, iconName, options) {
+  const iconEl = sl(iconName, {size:18, color:"#6b7a08"});
+  if (type === "select") {
+    const opts = (options||[]).map(o =>
+      `<option value="${esc(o)}" ${o===value?"selected":""}>${esc(o)}</option>`
+    ).join("");
+    return `<div class="pf-field">
+      <label class="ob-label">${esc(label)}</label>
+      <div class="relative">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">${iconEl}</span>
+        <select id="${esc(id)}" class="ob-input pl-11">
+          <option value="">— เลือกระดับชั้น —</option>${opts}
+        </select>
+      </div>
     </div>`;
   }
-  return `<div>
-    <label class="ob-label">${label}</label>
-    <input id="${id}" type="${type}" value="${esc(value)}" class="ob-input" placeholder="${label}"/>
+  return `<div class="pf-field">
+    <label class="ob-label">${esc(label)}</label>
+    <div class="relative">
+      <span class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">${iconEl}</span>
+      <input id="${esc(id)}" type="${type}" value="${esc(String(value))}"
+        placeholder="${esc(placeholder)}"
+        ${type==="number"?"min='1' max='4' step='0.01'":""}
+        class="ob-input pl-11 ${type==="number"?"font-mono":""}"/>
+    </div>
   </div>`;
 }
 
 function wireProfile() {
   // Avatar upload
-  const avatarInput = document.getElementById("avatar-input");
-  if (avatarInput) avatarInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
+  document.getElementById("avatar-input")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
     if (!file || !state.user) return;
     const ext = file.name.split(".").pop();
-    const path = `${state.user.id}/avatar.${ext}`;
     try {
-      await db.storage.from("avatars").upload(path, file, { upsert: true });
-      const { data } = db.storage.from("avatars").getPublicUrl(path);
+      const { error } = await db.storage.from("avatars").upload(
+        `${state.user.id}/avatar.${ext}`, file, { upsert: true }
+      );
+      if (error) throw error;
+      const { data } = db.storage.from("avatars").getPublicUrl(`${state.user.id}/avatar.${ext}`);
       state._avatarUrl = data.publicUrl + "?t=" + Date.now();
       toast("อัปเดตรูปโปรไฟล์แล้ว ✓");
       go("profile");
-    } catch { toast("อัปโหลดไม่สำเร็จ ลองใหม่"); }
+    } catch { toast("อัปโหลดไม่สำเร็จ — อาจต้องสร้าง bucket 'avatars' ใน Supabase Storage"); }
   });
 
-  // Save profile
-  const saveBtn = document.getElementById("btn-save-profile");
-  if (saveBtn) saveBtn.addEventListener("click", async () => {
-    const updates = {
-      first_name: document.getElementById("profile-name")?.value.trim() || "",
-      education_level: document.getElementById("profile-grade")?.value || "",
-      school_name: document.getElementById("profile-school")?.value.trim() || "",
-      gpa: parseFloat(document.getElementById("profile-gpax")?.value) || null,
-    };
-    if (state.user) {
-      try {
-        await db.from("users_profile").upsert({ id: state.user.id, ...updates });
-        await db.auth.updateUser({ data: { first_name: updates.first_name } });
-        toast("บันทึกสำเร็จ ✓");
-      } catch { toast("บันทึกไม่สำเร็จ ลองใหม่"); }
+  // Save — upsert to users_profile AND update auth metadata (keeps in sync)
+  document.getElementById("btn-save-profile")?.addEventListener("click", async () => {
+    const btn = document.getElementById("btn-save-profile");
+    const fname = document.getElementById("profile-name")?.value.trim() || "";
+    const grade = document.getElementById("profile-grade")?.value || "";
+    const school = document.getElementById("profile-school")?.value.trim() || "";
+    const gpaxRaw = document.getElementById("profile-gpax")?.value;
+    const gpa = gpaxRaw ? parseFloat(gpaxRaw) : null;
+
+    if (gpa !== null && (isNaN(gpa) || gpa < 1 || gpa > 4)) {
+      toast("GPAX ต้องอยู่ระหว่าง 1.00–4.00"); return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`;
+
+    try {
+      // 1. Save to users_profile (main source of truth)
+      await db.from("users_profile").upsert({
+        id: state.user.id,
+        first_name: fname,
+        education_level: grade,
+        school_name: school,
+        gpa: gpa,
+      });
+      // 2. Mirror first_name into auth metadata so displayName() works instantly
+      await db.auth.updateUser({ data: { first_name: fname } });
+
+      toast("บันทึกสำเร็จ ✓");
+      btn.disabled = false;
+      btn.innerHTML = `${sl("check",{size:18,color:"#16180f"})} บันทึกข้อมูล`;
+    } catch {
+      toast("บันทึกไม่สำเร็จ ลองใหม่");
+      btn.disabled = false;
+      btn.innerHTML = `${sl("check",{size:18,color:"#16180f"})} บันทึกข้อมูล`;
     }
   });
 
-  const lo = document.getElementById("btn-logout");
-  if (lo) lo.addEventListener("click", doLogout);
+  document.getElementById("btn-logout")?.addEventListener("click", doLogout);
 }
 
 // ── Settings ──────────────────────────────────────────────────

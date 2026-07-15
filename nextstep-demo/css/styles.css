@@ -155,21 +155,55 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--o
   margin-bottom: 6px;
 }
 
-/* input text */
+/* ── Input fields — global fix for dark mode + browser autofill ── */
+input, select, textarea {
+  color: var(--on-surface);
+  background-color: transparent;
+  -webkit-text-fill-color: var(--on-surface); /* prevents browser from overriding in dark */
+}
+/* kill Chrome autofill yellow flash */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 40px var(--surface-container-low, #1f2119) inset !important;
+  -webkit-text-fill-color: var(--on-surface) !important;
+  caret-color: var(--on-surface);
+}
+
+/* ob-input — redesigned: bigger, clearer, lime focus ring */
 .ob-input {
   width: 100%;
-  background: var(--surface-container-low, #1f2119);
-  border: 2px solid var(--surface-variant);
-  border-radius: 14px;
-  padding: 14px 16px;
+  background: #1f2119;
+  border: 1.5px solid #3a3f34;
+  border-radius: 16px;
+  padding: 16px 18px;
   font-family: var(--font-body);
   font-size: 16px;
-  color: var(--on-surface);
+  font-weight: 500;
+  color: #eef0e6;
+  -webkit-text-fill-color: #eef0e6;
+  caret-color: #c2d90f;
   outline: none;
-  transition: border-color .2s;
+  transition: border-color .18s, box-shadow .18s, background .18s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3) inset;
+  -webkit-appearance: none;
+  appearance: none;
 }
-.ob-input::placeholder { color: var(--on-surface-variant); opacity: .7; }
-.ob-input:focus { border-color: var(--primary); }
+.ob-input::placeholder {
+  color: #6b7a08;
+  -webkit-text-fill-color: #6b7a08;
+  opacity: 1;
+}
+.ob-input:focus {
+  border-color: #c2d90f;
+  box-shadow: 0 0 0 3px rgba(194,217,15,.18), 0 1px 3px rgba(0,0,0,.3) inset;
+  background: #23261c;
+}
+.ob-input:not(:placeholder-shown) {
+  border-color: #5a6540;
+}
+select.ob-input option { background: #1f2119; color: #eef0e6; }
 
 /* choice buttons (grade, track) */
 .ob-choice {
