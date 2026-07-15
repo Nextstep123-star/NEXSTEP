@@ -833,13 +833,13 @@ function render() {
   if (v === "cooking")        return void viewCooking();
   if (v === "universities")   return void viewUniversities();
   if (v === "roadmap-list")   return void viewRoadmapList();
+  if (v === "news-page")      return void viewNews();
+  if (v === "calendar")       return void viewCalendar();
 
   // sync views
   if (v === "auth")           $app().innerHTML = viewAuth();
   else if (v === "profile")   $app().innerHTML = viewProfileFull();
   else if (v === "settings")  $app().innerHTML = viewSettings();
-  else if (v === "news-page") $app().innerHTML = viewNews();
-  else if (v === "calendar")  $app().innerHTML = viewCalendar();
   else if (v === "career")    $app().innerHTML = viewCareerPath();
   else if (v === "create-path" || v === "create-path-flow") $app().innerHTML = viewDashboard();
   else if (v === "name-path") $app().innerHTML = viewNamePath();

@@ -3,97 +3,190 @@
 // news · calendar · career-path · profile · settings · roadmap · universities
 // ============================================================
 
-// ── News ──────────────────────────────────────────────────────
-function viewNews() {
-  const articles = [
-    { cat: "ระดับชาติ", date: "25 พ.ค. 68", title: "ทปอ. ปรับเกณฑ์ TCAS68 ใช้ TGAT/TPAT ขั้นต่ำ 30%", body: "ที่ประชุมอธิการบดีแห่งประเทศไทย (ทปอ.) มีมติปรับเกณฑ์คะแนนขั้นต่ำของ TGAT และ TPAT ในการคัดเลือก TCAS68 เพิ่มขึ้นเป็น 30% สำหรับทุกรอบ" },
-    { cat: "มหาวิทยาลัย", date: "27 พ.ค. 68", title: "จุฬาฯ เพิ่มที่นั่ง รอบ Portfolio คณะวิศวะ 20 ที่", body: "จุฬาลงกรณ์มหาวิทยาลัยประกาศเพิ่มโควตารอบ Portfolio สำหรับคณะวิศวกรรมศาสตร์อีก 20 ที่นั่ง เพื่อเปิดโอกาสให้นักเรียนที่มีผลงานดีเด่นเข้าถึงการคัดเลือก" },
-    { cat: "ข้อสอบ", date: "25 พ.ค. 68", title: "กสพท ประกาศวันรับสมัคร TCAS68 รอบ 2 แล้ว", body: "กสพท ออกประกาศกำหนดวันรับสมัครรอบที่ 2 (Quota) ของ TCAS68 อย่างเป็นทางการ พร้อมเปิดรับสมัครผ่านระบบ myTCAS ตั้งแต่วันที่ 1 มิ.ย. 68" },
-    { cat: "แนะแนว", date: "22 พ.ค. 68", title: "เปิดตัว 'NEX Score' เครื่องมือประเมินโอกาสสอบติดใหม่", body: "แพลตฟอร์ม NEX เปิดตัวฟีเจอร์ใหม่ NEX Score ที่ช่วยประเมินโอกาสสอบติดแบบ real-time โดยคำนวณจาก GPAX, คะแนนสอบ และเกณฑ์ของแต่ละมหาวิทยาลัย" },
-    { cat: "ทุนการศึกษา", date: "20 พ.ค. 68", title: "สสวท. เปิดรับสมัครทุน พสวท. ปี 2568", body: "สถาบันส่งเสริมการสอนวิทยาศาสตร์และเทคโนโลยี เปิดรับสมัครนักเรียนทุน พสวท. ประจำปี 2568 สำหรับนักเรียนสายวิทย์-คณิต ผู้สนใจสามารถสมัครผ่านเว็บไซต์ได้ถึง 15 มิ.ย. 68" },
-  ];
-  const catColor = { "ระดับชาติ": "bg-error/20 text-error", "มหาวิทยาลัย": "bg-tertiary/20 text-tertiary", "ข้อสอบ": "bg-primary/20 text-primary", "แนะแนว": "bg-secondary/20 text-secondary", "ทุนการศึกษา": "bg-[#ff9800]/20 text-[#ff9800]" };
+// ── News — ดึงจาก Supabase table `news` ──────────────────────
+const CAT_COLOR = {
+  "ระดับชาติ":   "bg-error/20 text-error",
+  "มหาวิทยาลัย": "bg-tertiary/20 text-tertiary",
+  "ข้อสอบ":      "bg-primary/20 text-primary",
+  "แนะแนว":      "bg-secondary/20 text-secondary",
+  "ทุนการศึกษา": "bg-[#ff9800]/20 text-[#ff9800]",
+  "ทั่วไป":      "bg-surface-variant text-on-surface-variant",
+};
 
-  const cards = articles.map((a, i) => `
-    <article class="db-card p-5 cursor-pointer hover:border-primary/40 transition-colors" data-article="${i}">
-      <div class="flex items-center gap-2 mb-2">
-        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${catColor[a.cat] || "bg-surface-variant text-on-surface-variant"}">${esc(a.cat)}</span>
-        <span class="text-[12px] text-on-surface-variant">${esc(a.date)}</span>
-      </div>
-      <h3 class="font-display font-bold text-[15px] text-on-surface leading-snug mb-1">${esc(a.title)}</h3>
-      <p class="text-[13px] text-on-surface-variant leading-relaxed line-clamp-2">${esc(a.body)}</p>
-    </article>`).join("");
-
-  return dashShell(`
-    <div class="flex items-center justify-between mb-5">
-      <h1 class="font-display font-bold text-[22px] text-on-surface">ข่าวสารการศึกษา</h1>
-      <div class="flex gap-2">
-        ${["ทั้งหมด","ระดับชาติ","มหาวิทยาลัย","ข้อสอบ"].map((l,i)=>`<button class="text-[12px] font-bold px-3 py-1 rounded-full border ${i===0?"bg-primary text-on-primary border-primary":"border-surface-variant text-on-surface-variant"}">${l}</button>`).join("")}
-      </div>
-    </div>
-    <div class="space-y-3">${cards}</div>
-  `);
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-// ── Calendar ──────────────────────────────────────────────────
-function viewCalendar() {
+function renderNewsCards(articles, activeFilter) {
+  if (!articles.length) return `<div class="text-center py-12 text-on-surface-variant">${sl("info",{size:32,color:"#3a3f34"})}<p class="mt-3">ไม่มีข่าวในหมวดนี้</p></div>`;
+  return articles.map((a) => `
+    <article class="db-card p-5 cursor-pointer hover:border-primary/40 transition-colors">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${CAT_COLOR[a.category] || CAT_COLOR["ทั่วไป"]}">${esc(a.category)}</span>
+        <span class="text-[12px] text-on-surface-variant">${fmtDate(a.published_at)}</span>
+      </div>
+      <h3 class="font-display font-bold text-[15px] text-on-surface leading-snug mb-1">${esc(a.title)}</h3>
+      <p class="text-[13px] text-on-surface-variant leading-relaxed line-clamp-2">${esc(a.body || "")}</p>
+    </article>`).join("");
+}
+
+async function viewNews() {
+  // Render skeleton immediately
+  document.getElementById("app").innerHTML = dashShell(`
+    <div class="flex items-center justify-between mb-5">
+      <h1 class="font-display font-bold text-[22px] text-on-surface">ข่าวสารการศึกษา</h1>
+      <div id="news-filters" class="flex gap-2 overflow-x-auto no-scrollbar"></div>
+    </div>
+    <div id="news-list" class="space-y-3">
+      ${[1,2,3].map(()=>`<div class="db-card p-5 animate-pulse h-24"></div>`).join("")}
+    </div>
+  `);
+  wireCommon();
+
+  // Fetch from Supabase
+  let articles = [];
+  try {
+    const { data, error } = await db.from("news")
+      .select("id,title,body,category,published_at")
+      .eq("is_published", true)
+      .order("published_at", { ascending: false })
+      .limit(30);
+    if (!error) articles = data || [];
+  } catch { }
+
+  // Build filter tabs from unique categories
+  const cats = ["ทั้งหมด", ...new Set(articles.map(a => a.category))];
+  let active = "ทั้งหมด";
+
+  const render = () => {
+    const filtered = active === "ทั้งหมด" ? articles : articles.filter(a => a.category === active);
+    const filtersEl = document.getElementById("news-filters");
+    const listEl = document.getElementById("news-list");
+    if (filtersEl) filtersEl.innerHTML = cats.map(c => `
+      <button data-cat="${esc(c)}" class="news-filter shrink-0 text-[12px] font-bold px-3 py-1 rounded-full border transition-colors ${c===active?"bg-primary text-on-primary border-primary":"border-surface-variant text-on-surface-variant hover:border-primary/40"}">
+        ${esc(c)}
+      </button>`).join("");
+    if (listEl) listEl.innerHTML = renderNewsCards(filtered, active);
+    // Re-wire filter buttons
+    document.querySelectorAll(".news-filter").forEach(b => b.addEventListener("click", () => {
+      active = b.dataset.cat; render();
+    }));
+  };
+  render();
+}
+
+// ── Calendar — ดึงจาก Supabase table `events` ─────────────────
+const MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const DAYS_TH   = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+
+// color token → Tailwind class (ต้องใช้ full class ไม่ใช่ dynamic เพื่อไม่ให้ purge)
+const EV_COLOR = {
+  error:           { bg: "bg-error",          text: "text-error",          dim: "bg-error/10" },
+  tertiary:        { bg: "bg-tertiary",        text: "text-tertiary",       dim: "bg-tertiary/10" },
+  primary:         { bg: "bg-primary",         text: "text-primary",        dim: "bg-primary/10" },
+  secondary:       { bg: "bg-secondary",       text: "text-secondary",      dim: "bg-secondary/10" },
+  "secondary-fixed":{ bg:"bg-secondary-fixed", text:"text-secondary",       dim: "bg-secondary/10" },
+};
+function evColor(c) { return EV_COLOR[c] || EV_COLOR.primary; }
+
+async function viewCalendar() {
   const today = new Date();
-  const month = today.getMonth();
-  const year = today.getFullYear();
-  const MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-  const DAYS_TH = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+  let viewMonth = today.getMonth();
+  let viewYear  = today.getFullYear();
 
-  const events = [
-    { date: new Date(2026,6,15), title: "สอบ TPAT3 (คณิต-วิทย์)", type: "exam", color: "bg-error" },
-    { date: new Date(2026,6,22), title: "Young Scientist Camp รอบรับสมัคร", type: "activity", color: "bg-tertiary" },
-    { date: new Date(2026,7,1),  title: "Open House จุฬา วิศวะ", type: "open-house", color: "bg-primary" },
-    { date: new Date(2026,7,10), title: "TCAS68 รอบ 2 — ปิดรับสมัคร", type: "deadline", color: "bg-[#ff9800]" },
-    { date: new Date(2026,7,20), title: "ประกาศผล TGAT/TPAT", type: "result", color: "bg-secondary" },
-  ];
-
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month+1, 0).getDate();
-  const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push(`<div></div>`);
-  for (let d = 1; d <= daysInMonth; d++) {
-    const isToday = d === today.getDate();
-    const ev = events.find(e => e.date.getDate()===d && e.date.getMonth()===month);
-    cells.push(`
-      <div class="relative flex flex-col items-center py-1">
-        <span class="w-8 h-8 flex items-center justify-center rounded-full font-mono text-[13px] font-bold ${isToday ? "bg-primary text-on-primary" : "text-on-surface-variant"}">${d}</span>
-        ${ev ? `<span class="w-1.5 h-1.5 rounded-full ${ev.color} mt-0.5"></span>` : ""}
-      </div>`);
-  }
-
-  const upcomingList = events.map(e => `
-    <div class="flex items-start gap-3 p-3 db-card">
-      <div class="w-10 h-10 rounded-xl ${e.color}/20 border border-current flex items-center justify-center shrink-0 ${e.color.replace("bg-","text-")}">
-        <span class="font-mono font-bold text-[14px]">${e.date.getDate()}</span>
-      </div>
-      <div>
-        <div class="font-bold text-[14px] text-on-surface">${esc(e.title)}</div>
-        <div class="text-[12px] text-on-surface-variant mt-0.5">${e.date.getDate()} ${MONTHS_TH[e.date.getMonth()]} ${e.date.getFullYear()+543}</div>
-      </div>
-    </div>`).join("");
-
-  return dashShell(`
+  // Render shell + skeleton
+  document.getElementById("app").innerHTML = dashShell(`
     <div class="flex items-center justify-between mb-5">
       <h1 class="font-display font-bold text-[22px] text-on-surface">ปฏิทิน TCAS</h1>
       <div class="flex items-center gap-2">
-        <button class="p-1.5 rounded-lg border border-surface-variant text-on-surface-variant">${sl("arrow_left",{size:16})}</button>
-        <span class="font-display font-bold text-[15px] text-on-surface">${MONTHS_TH[month]} ${year+543}</span>
-        <button class="p-1.5 rounded-lg border border-surface-variant text-on-surface-variant">${sl("arrow_right",{size:16})}</button>
+        <button id="cal-prev" class="p-1.5 rounded-lg border border-surface-variant text-on-surface-variant">${sl("arrow_left",{size:16})}</button>
+        <span id="cal-month-label" class="font-display font-bold text-[15px] text-on-surface w-28 text-center"></span>
+        <button id="cal-next" class="p-1.5 rounded-lg border border-surface-variant text-on-surface-variant">${sl("arrow_right",{size:16})}</button>
       </div>
     </div>
-    <div class="db-card p-4 mb-4">
+    <div id="cal-grid" class="db-card p-4 mb-4"></div>
+    <h2 class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมที่กำลังจะมาถึง</h2>
+    <div id="cal-upcoming" class="space-y-2">
+      ${[1,2,3].map(()=>`<div class="db-card p-4 animate-pulse h-16"></div>`).join("")}
+    </div>
+  `);
+  wireCommon();
+
+  // Fetch ALL events from Supabase (small table, fetch once)
+  let events = [];
+  try {
+    const { data } = await db.from("events")
+      .select("id,title,event_date,type,color,description")
+      .order("event_date", { ascending: true });
+    events = (data || []).map(e => ({ ...e, _date: new Date(e.event_date) }));
+  } catch { }
+
+  function renderCalendar() {
+    // Month label
+    const label = document.getElementById("cal-month-label");
+    if (label) label.textContent = `${MONTHS_TH[viewMonth]} ${viewYear + 543}`;
+
+    // Grid
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(`<div></div>`);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const isToday = d === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
+      const ev = events.find(e => e._date.getDate()===d && e._date.getMonth()===viewMonth && e._date.getFullYear()===viewYear);
+      const col = ev ? evColor(ev.color) : null;
+      cells.push(`
+        <div class="flex flex-col items-center py-1">
+          <span class="w-8 h-8 flex items-center justify-center rounded-full font-mono text-[13px] font-bold ${isToday?"bg-primary text-on-primary":"text-on-surface-variant"}">${d}</span>
+          ${ev ? `<span class="w-1.5 h-1.5 rounded-full ${col.bg} mt-0.5"></span>` : ""}
+        </div>`);
+    }
+    const grid = document.getElementById("cal-grid");
+    if (grid) grid.innerHTML = `
       <div class="grid grid-cols-7 gap-1 mb-2">
         ${DAYS_TH.map(d=>`<div class="text-center text-[11px] font-bold text-on-surface-variant py-1">${d}</div>`).join("")}
       </div>
-      <div class="grid grid-cols-7 gap-1">${cells.join("")}</div>
-    </div>
-    <h2 class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมที่กำลังจะมาถึง</h2>
-    <div class="space-y-2">${upcomingList}</div>
-  `);
+      <div class="grid grid-cols-7 gap-1">${cells.join("")}</div>`;
+
+    // Upcoming — events from today onwards (next 90 days)
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() + 90);
+    const upcoming = events.filter(e => e._date >= today && e._date <= cutoff);
+    const upEl = document.getElementById("cal-upcoming");
+    if (upEl) upEl.innerHTML = upcoming.length
+      ? upcoming.map(e => {
+          const col = evColor(e.color);
+          return `
+            <div class="flex items-start gap-3 db-card p-3">
+              <div class="w-11 h-11 rounded-xl ${col.dim} flex items-center justify-center shrink-0">
+                <span class="font-mono font-bold text-[13px] ${col.text}">${e._date.getDate()}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-[14px] text-on-surface truncate">${esc(e.title)}</div>
+                <div class="text-[12px] text-on-surface-variant mt-0.5">
+                  ${e._date.getDate()} ${MONTHS_TH[e._date.getMonth()]} ${e._date.getFullYear()+543}
+                  ${e.type ? ` · ${esc(e.type)}` : ""}
+                </div>
+              </div>
+              <span class="shrink-0 w-2 h-2 rounded-full ${col.bg} mt-2"></span>
+            </div>`;
+        }).join("")
+      : `<div class="text-center py-6 text-on-surface-variant text-[14px]">ไม่มีกิจกรรมใน 90 วันข้างหน้า</div>`;
+  }
+
+  renderCalendar();
+
+  // Navigation
+  document.getElementById("cal-prev")?.addEventListener("click", () => {
+    if (viewMonth === 0) { viewMonth = 11; viewYear--; } else viewMonth--;
+    renderCalendar();
+  });
+  document.getElementById("cal-next")?.addEventListener("click", () => {
+    if (viewMonth === 11) { viewMonth = 0; viewYear++; } else viewMonth++;
+    renderCalendar();
+  });
 }
 
 // ── Career Path ───────────────────────────────────────────────
