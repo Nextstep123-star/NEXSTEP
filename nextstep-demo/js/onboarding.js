@@ -8,6 +8,7 @@
 const OB = {
   step: 1,        // 1-6
   dir: 1,         // 1 = forward, -1 = back (เพื่อ slide direction)
+  mode: "full",   // "full" = สมัครอีเมล (step 1-6) | "profile" = Google/ยังไม่ตอบ (step 1-5)
   data: {
     name: "",
     grade: "",       // ม.3–ม.6
@@ -19,7 +20,8 @@ const OB = {
     password: "",
   },
 };
-const OB_TOTAL = 6;
+// จำนวนขั้นตามโหมด: profile ข้าม step 6 (อีเมล/รหัส เพราะมีบัญชีแล้ว)
+function obTotal() { return OB.mode === "profile" ? 5 : 6; }
 
 // ---- helpers ----
 const obEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -31,7 +33,7 @@ function obIcon(name, fill = false) {
 
 // ---- progress bar + back btn header ----
 function obHeader() {
-  const pct = ((OB.step - 1) / OB_TOTAL) * 100;
+  const pct = ((OB.step - 1) / obTotal()) * 100;
   const showBack = OB.step > 1;
   return `
     <div class="ob-header flex items-center gap-3 mb-6">
@@ -41,7 +43,7 @@ function obHeader() {
       <div class="flex-1 bg-surface-variant rounded-full h-2 overflow-hidden">
         <div class="ob-bar-fill h-full rounded-full bg-primary" style="width:${pct}%;transition:width .4s cubic-bezier(.32,.78,.2,1)"></div>
       </div>
-      <span class="ob-count font-mono text-[13px] text-on-surface-variant tabular-nums w-8 text-right">${OB.step}/${OB_TOTAL}</span>
+      <span class="ob-count font-mono text-[13px] text-on-surface-variant tabular-nums w-8 text-right">${OB.step}/${obTotal()}</span>
     </div>`;
 }
 
@@ -63,7 +65,7 @@ function obStep1() {
   return `
     ${obHeader()}
     <div id="ob-card">
-      <p class="ob-q">สวัสดี! เราเรียกคุณว่าอะไรดี? 👋</p>
+      <p class="ob-q">สวัสดี! เราเรียกคุณว่าอะไรดี?</p>
       <input id="ob-name" type="text" maxlength="40" autocomplete="given-name"
         value="${obEsc(OB.data.name)}" placeholder="ชื่อเล่นของคุณ"
         class="ob-input" />
@@ -90,9 +92,9 @@ function obStep2() {
 
 function obStep3() {
   const tracks = [
-    { key: "sci_math", label: "วิทย์–คณิต", emoji: "🔬" },
-    { key: "arts",     label: "ศิลป์",       emoji: "🎨" },
-    { key: "vocational", label: "อาชีวะ",   emoji: "🛠️" },
+    { key: "sci_math", label: "วิทย์–คณิต", icon: "flask" },
+    { key: "arts",     label: "ศิลป์",       icon: "palette" },
+    { key: "vocational", label: "อาชีวะ",   icon: "wrench" },
   ];
   return `
     ${obHeader()}
@@ -101,7 +103,7 @@ function obStep3() {
       <div class="flex flex-col gap-3 mt-2">
         ${tracks.map((t, i) => `
           <button class="ob-choice text-left flex items-center gap-3 ${OB.data.track === t.key ? "selected" : ""}" data-track="${t.key}" style="animation-delay:${i * 60}ms">
-            <span class="text-2xl">${t.emoji}</span>
+            <span class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">${sl(t.icon, { size: 20, color: "#c2d90f" })}</span>
             <span class="font-display font-bold text-[17px]">${t.label}</span>
           </button>`).join("")}
       </div>
@@ -112,7 +114,7 @@ function obStep4() {
   return `
     ${obHeader()}
     <div id="ob-card">
-      <p class="ob-q">เล่าให้ฟังอีกนิด 📖</p>
+      <p class="ob-q">เล่าให้ฟังอีกนิด</p>
       <div class="space-y-3 mt-2">
         <div>
           <label class="ob-label">โรงเรียน</label>
@@ -125,7 +127,7 @@ function obStep4() {
           <input id="ob-gpax" type="number" min="1" max="4" step="0.01"
             value="${OB.data.gpax !== null ? OB.data.gpax : ""}" placeholder="เช่น 3.50"
             class="ob-input font-mono" />
-          <p class="text-[12px] text-on-surface-variant mt-1">ใช้แค่ประมาณการ ไม่ตัดสินอะไรทั้งนั้น ✌️</p>
+          <p class="text-[12px] text-on-surface-variant mt-1">ใช้แค่ประมาณการ ไม่ตัดสินอะไรทั้งนั้น</p>
         </div>
       </div>
       <button id="ob-next" class="ob-btn-primary mt-5">ถัดไป ${obIcon("arrow_forward")}</button>
@@ -151,7 +153,7 @@ async function obStep5() {
     <div id="ob-card">
       <p class="ob-q">อยากเข้าคณะอะไร? <span class="text-on-surface-variant text-[15px] font-normal">(เลือกได้หลายอัน)</span></p>
       <div class="flex flex-wrap gap-2 mt-3">${chips}</div>
-      <button id="ob-next" class="ob-btn-primary mt-5">ถัดไป ${obIcon("arrow_forward")}</button>
+      <button id="ob-next" class="ob-btn-primary mt-5">${OB.mode === "profile" ? `เสร็จสิ้น ${obIcon("check")}` : `ถัดไป ${obIcon("arrow_forward")}`}</button>
     </div>`;
 }
 
@@ -159,7 +161,7 @@ function obStep6() {
   return `
     ${obHeader()}
     <div id="ob-card">
-      <p class="ob-q">สร้างบัญชีเพื่อบันทึกเส้นทางของ ${obEsc(OB.data.name)} 🔐</p>
+      <p class="ob-q">สร้างบัญชีเพื่อบันทึกเส้นทางของ ${obEsc(OB.data.name)} <span class="inline-block align-middle">${sl("lock", { size: 20, color: "#c2d90f" })}</span></p>
       <div class="space-y-3 mt-2">
         <div>
           <label class="ob-label">อีเมล</label>
@@ -168,15 +170,21 @@ function obStep6() {
             class="ob-input" />
         </div>
         <div>
-          <label class="ob-label">รหัสผ่าน <span class="text-on-surface-variant font-normal">(อย่างน้อย 6 ตัว)</span></label>
+          <label class="ob-label">รหัสผ่าน <span class="text-on-surface-variant font-normal">(อย่างน้อย 8 ตัว)</span></label>
           <div class="relative">
-            <input id="ob-pass" type="password" required minlength="6" autocomplete="new-password"
-              value="${obEsc(OB.data.password)}" placeholder="••••••"
+            <input id="ob-pass" type="password" required minlength="8" autocomplete="new-password"
+              value="${obEsc(OB.data.password)}" placeholder="••••••••"
               class="ob-input pr-12" />
             <button type="button" id="ob-toggle-pass" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
               ${obIcon("visibility")}
             </button>
           </div>
+          <div id="ob-pw-strength"></div>
+        </div>
+        <div>
+          <label class="ob-label">ยืนยันรหัสผ่าน</label>
+          <input id="ob-pass2" type="password" required minlength="8" autocomplete="new-password"
+            placeholder="••••••••" class="ob-input" />
         </div>
       </div>
       <button id="ob-submit" class="ob-btn-primary mt-5">
@@ -192,9 +200,9 @@ function obComplete(name) {
   if (!appEl) return;
   appEl.innerHTML = `
     <div class="min-h-screen flex flex-col items-center justify-center text-center px-6 dotted-grid">
-      <div class="ob-confetti text-6xl mb-4 ${reduce ? "" : "animate-bounce"}">🎉</div>
+      <div class="ob-confetti mb-4 flex justify-center ${reduce ? "" : "animate-bounce"}">${sl("sparkles", { size: 56, color: "#c2d90f" })}</div>
       <h2 class="font-display font-bold text-[26px] text-primary mb-2">ยินดีต้อนรับสู่ NEXTSTEP!</h2>
-      <p class="text-on-surface-variant text-[16px]">สวัสดี ${obEsc(name)} พร้อมแล้ว ไปวางแผนกัน 🚀</p>
+      <p class="text-on-surface-variant text-[16px]">สวัสดี ${obEsc(name)} พร้อมแล้ว ไปวางแผนกัน</p>
     </div>`;
   setTimeout(() => { if (typeof go === "function") go("create-path"); }, reduce ? 600 : 1600);
 }
@@ -233,7 +241,7 @@ function wireOB() {
     const nameInput = document.getElementById("ob-name");
     const next = () => {
       const v = nameInput.value.trim();
-      if (!v) { obToast("บอกชื่อหน่อยนะ 😊"); return; }
+      if (!v) { obToast("บอกชื่อหน่อยนะ"); return; }
       OB.data.name = v;
       // animate name reveal before moving
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -308,7 +316,11 @@ function wireOB() {
         }
       });
     });
-    document.getElementById("ob-next").addEventListener("click", () => { OB.dir = 1; OB.step++; renderOB(); });
+    // step 5 = ขั้นสุดท้ายของ profile mode → บันทึกเลย · full mode → ไป step 6
+    document.getElementById("ob-next").addEventListener("click", () => {
+      if (OB.mode === "profile") { finishProfileOnboarding(); }
+      else { OB.dir = 1; OB.step++; renderOB(); }
+    });
   }
 
   if (OB.step === 6) {
@@ -320,54 +332,48 @@ function wireOB() {
       togglePass.innerHTML = obIcon(show ? "visibility_off" : "visibility");
     });
 
+    // live strength meter (helper จาก app.js)
+    if (typeof wireStrength === "function") wireStrength("ob-pass", "ob-pw-strength");
+
     const submit = document.getElementById("ob-submit");
     submit.addEventListener("click", async () => {
       const email = document.getElementById("ob-email").value.trim();
       const pass = document.getElementById("ob-pass").value;
+      const pass2 = document.getElementById("ob-pass2").value;
       if (!email || !email.includes("@")) { obToast("อีเมลนี้ดูไม่ถูกต้องนะ ลองเช็คดูอีกทีมั้ย?"); return; }
-      if (pass.length < 6) { obToast("รหัสผ่านต้องมีอย่างน้อย 6 ตัวนะ"); return; }
+      const pwErr = validatePassword(pass, pass2);
+      if (pwErr) { obToast(pwErr); return; }
       OB.data.email = email;
       OB.data.password = pass;
 
       submit.disabled = true;
       submit.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังสร้างบัญชี...`;
 
-      // --- สร้างบัญชีใน Supabase Auth ---
-      const { data: authData, error: authErr } = await db.auth.signUp({
+      // --- สร้างบัญชีใน Supabase Auth (autoconfirm ON → มี session ทันที) ---
+      const { data: authData, error: sErr } = await db.auth.signUp({
         email, password: pass,
         options: { data: { first_name: OB.data.name } },
       });
-      if (authErr) {
+      if (sErr) {
         submit.disabled = false;
         submit.innerHTML = `${obIcon("rocket_launch")} เริ่มต้นเลย!`;
-        obToast(obAuthErr(authErr));
+        obToast(obAuthErr(sErr));
         return;
       }
 
-      // --- บันทึกข้อมูลลง Supabase (ครั้งเดียวตอน step 6) ---
       const uid = authData?.user?.id;
-      if (uid) {
-        try {
-          await db.from("users_profile").upsert({
-            id: uid,
-            first_name: OB.data.name,
-            education_level: OB.data.grade,
-            school_name: OB.data.school,
-            gpa: OB.data.gpax,
-          });
-          if (OB.data.interests.length > 0) {
-            await db.from("user_preferences").upsert({
-              user_id: uid,
-              interests: OB.data.interests,
-            });
-          }
-        } catch { /* RLS may block pre-Phase0; best-effort */ }
+      // อัปเดต state ของ app
+      if (typeof state !== "undefined") { state.user = authData.user; state.guest = false; }
 
-        // อัปเดต state ของ app
-        if (typeof state !== "undefined") { state.user = authData.user; state.guest = false; }
+      // --- บันทึกข้อมูล onboarding (trigger สร้าง row ให้แล้ว → update, RLS ผ่านเพราะมี session) ---
+      const ok = await saveOnboardingProfile(uid);
+      if (!ok) {
+        submit.disabled = false;
+        submit.innerHTML = `${obIcon("rocket_launch")} เริ่มต้นเลย!`;
+        obToast("สร้างบัญชีแล้ว แต่บันทึกข้อมูลไม่สำเร็จ ลองอีกครั้งนะ");
+        return;
       }
 
-      // --- animation จบ ---
       obComplete(OB.data.name);
     });
   }
@@ -382,16 +388,60 @@ function obToast(msg) {
 }
 
 function obAuthErr(e) {
+  // ใช้ authErr() จาก app.js เป็นหลัก (ครอบคลุมกว่า) — fallback ถ้ายังไม่โหลด
+  if (typeof authErr === "function") return authErr(e);
   const m = (e?.message || "").toLowerCase();
   if (m.includes("already")) return "อีเมลนี้มีบัญชีอยู่แล้วนะ ลองเข้าสู่ระบบดูมั้ย?";
-  if (m.includes("password")) return "รหัสผ่านต้องมีอย่างน้อย 6 ตัวนะ";
-  if (m.includes("email")) return "อีเมลนี้ดูไม่ถูกต้อง ลองเช็คดูอีกทีมั้ย?";
   return "เกิดข้อผิดพลาด ลองใหม่อีกครั้งนะ";
 }
 
+// บันทึกข้อมูล onboarding → users_profile (update, trigger สร้าง row แล้ว) + user_preferences
+// คืน true ถ้าสำเร็จ. ใช้ทั้ง full mode (หลัง signUp) และ profile mode (Google)
+async function saveOnboardingProfile(uid) {
+  if (!uid) return false;
+  try {
+    const { error: e1 } = await db.from("users_profile").update({
+      first_name: OB.data.name,
+      education_level: OB.data.grade,
+      school_name: OB.data.school,
+      gpa: OB.data.gpax,
+      onboarded: true,
+    }).eq("id", uid);
+    if (e1) throw e1;
+
+    // mirror first_name ไป auth metadata ให้ displayName() ใช้ได้ทันที
+    try { await db.auth.updateUser({ data: { first_name: OB.data.name } }); } catch {}
+
+    await db.from("user_preferences").upsert({
+      user_id: uid,
+      interests: OB.data.interests,
+    }, { onConflict: "user_id" });
+    return true;
+  } catch (err) {
+    console.warn("saveOnboardingProfile failed:", err?.message);
+    return false;
+  }
+}
+
+// profile mode (Google/ยังไม่ตอบ): user login อยู่แล้ว → บันทึกแล้วจบ
+async function finishProfileOnboarding() {
+  const btn = document.getElementById("ob-next");
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`; }
+  const uid = state?.user?.id;
+  const ok = await saveOnboardingProfile(uid);
+  if (!ok) {
+    if (btn) { btn.disabled = false; btn.innerHTML = `เสร็จสิ้น ${obIcon("check")}`; }
+    obToast("บันทึกไม่สำเร็จ ลองอีกครั้งนะ");
+    return;
+  }
+  obComplete(OB.data.name);
+}
+
 // ---- exported entry point ----
-function startOnboarding() {
-  OB.step = 1; OB.dir = 1;
-  OB.data = { name: "", grade: "", track: "", school: "", gpax: null, interests: [], email: "", password: "" };
+// mode: "full" (สมัครอีเมล) | "profile" (Google/ยังไม่ตอบคำถาม)
+function startOnboarding(mode = "full") {
+  OB.step = 1; OB.dir = 1; OB.mode = mode;
+  const prefillName = mode === "profile" && typeof displayName === "function" ? displayName() : "";
+  OB.data = { name: prefillName, grade: "", track: "", school: "", gpax: null, interests: [], email: "", password: "" };
   renderOB();
 }

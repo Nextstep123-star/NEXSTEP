@@ -7,3 +7,5 @@ screenshots/
 migrate.mjs
 fix_encoding.mjs
 
+shoot_live.mjs
+shoot_auth.mjs

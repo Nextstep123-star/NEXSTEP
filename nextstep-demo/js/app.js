@@ -26,9 +26,9 @@ function subjectLabel(code) {
 
 /* ---------- Tracks (spec §8.8) ---------- */
 const TRACKS = [
-  { key: "sci_math", flag: "accepts_sci_math", label: "วิทย์–คณิต", emoji: "🔬", desc: "สายวิทยาศาสตร์ คณิตศาสตร์" },
-  { key: "arts", flag: "accepts_arts", label: "ศิลป์", emoji: "🎨", desc: "ศิลป์–ภาษา / ศิลป์–คำนวณ / ศิลป์–สังคม" },
-  { key: "vocational", flag: "accepts_vocational", label: "อาชีวะ (ปวช./ปวส.)", emoji: "🛠️", desc: "สายอาชีพ" },
+  { key: "sci_math", flag: "accepts_sci_math", label: "วิทย์–คณิต", icon: "flask", desc: "สายวิทยาศาสตร์ คณิตศาสตร์" },
+  { key: "arts", flag: "accepts_arts", label: "ศิลป์", icon: "palette", desc: "ศิลป์–ภาษา / ศิลป์–คำนวณ / ศิลป์–สังคม" },
+  { key: "vocational", flag: "accepts_vocational", label: "อาชีวะ (ปวช./ปวส.)", icon: "wrench", desc: "สายอาชีพ" },
 ];
 
 /* ---------- State ---------- */
@@ -84,7 +84,7 @@ async function doRegister(name, email, password) {
     state.user = data.user; state.guest = false;
     // best-effort profile row (RLS own-row insert; Phase 0). Ignore failures.
     try { await db.from("users_profile").upsert({ id: data.user.id, first_name: name }); } catch {}
-    toast("สมัครสมาชิกสำเร็จ 🎉");
+    toast("สมัครสมาชิกสำเร็จ");
     go("create-path");
   } else {
     // email-confirmation required
@@ -96,8 +96,8 @@ async function doLogin(email, password) {
   const { data, error } = await db.auth.signInWithPassword({ email, password });
   if (error) { toast(authErr(error)); return; }
   state.user = data.user; state.guest = false;
-  toast("ยินดีต้อนรับกลับ 👋");
-  go("create-path");
+  toast("ยินดีต้อนรับกลับ");
+  await routeAfterAuth(); // onboarded? → dashboard, ไม่งั้น → onboarding
 }
 async function doLogout() {
   try { await db.auth.signOut(); } catch {}
@@ -119,10 +119,69 @@ async function doGoogleLogin() {
 function authErr(e) {
   const m = (e?.message || "").toLowerCase();
   if (m.includes("invalid login")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
-  if (m.includes("already registered") || m.includes("already been registered")) return "อีเมลนี้มีบัญชีอยู่แล้ว";
-  if (m.includes("password")) return "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร";
+  if (m.includes("already registered") || m.includes("already been registered") || m.includes("user already")) return "อีเมลนี้มีบัญชีอยู่แล้ว ลองเข้าสู่ระบบดูมั้ย?";
+  if (m.includes("email not confirmed")) return "อีเมลยังไม่ได้ยืนยัน — ลองสมัครใหม่หรือขอลิงก์ยืนยันอีกครั้ง";
+  if (m.includes("should be different") || m.includes("different from the old")) return "รหัสใหม่ต้องต่างจากรหัสเดิม";
+  if (m.includes("weak") || (m.includes("password") && m.includes("least"))) return "รหัสผ่านสั้นเกินไป ต้องมีอย่างน้อย 8 ตัว";
+  if (m.includes("password")) return "รหัสผ่านไม่ถูกต้อง";
   if (m.includes("email")) return "อีเมลไม่ถูกต้อง";
+  if (m.includes("rate limit") || m.includes("too many")) return "ขอบ่อยเกินไป รอสักครู่แล้วลองใหม่นะ";
   return "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง";
+}
+
+/* ============================================================
+   Password strength + confirm (shared: onboarding / settings / reset)
+   ============================================================ */
+const PW_MIN = 8; // ความยาวขั้นต่ำ
+
+// คืน { score 0-4, label, color, pct } — ใช้กับหลอดสเกล
+function passwordStrength(pw) {
+  if (!pw) return { score: -1, label: "", color: "#3a3f34", pct: 0 };
+  let s = 0;
+  if (pw.length >= PW_MIN) s++;
+  if (pw.length >= 12) s++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+  if (/\d/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  s = Math.min(s, 4);
+  const levels = [
+    { label: "อ่อนมาก", color: "#ef4444" },
+    { label: "อ่อน", color: "#f59e0b" },
+    { label: "ปานกลาง", color: "#eab308" },
+    { label: "ดี", color: "#84cc16" },
+    { label: "แข็งแรง", color: "#22c55e" },
+  ];
+  return { score: s, ...levels[s], pct: ((s + 1) / 5) * 100 };
+}
+
+// HTML ของหลอดสเกล + ข้อความบอก (ใส่ใน container ที่มี id)
+function strengthWidgetHTML(pw) {
+  const s = passwordStrength(pw);
+  const tips = pw ? "" : `<span class="text-[11px] text-on-surface-variant">แนะนำ: อย่างน้อย 8 ตัว · มีตัวพิมพ์ใหญ่-เล็ก · ตัวเลข · สัญลักษณ์</span>`;
+  return `
+    <div class="pw-track"><div class="pw-fill" style="width:${s.pct}%;background:${s.color};transition:all .2s"></div></div>
+    <div class="flex items-center justify-between mt-1">
+      <span class="text-[11px]" style="color:${s.color}">${esc(s.label)}</span>
+      ${tips}
+    </div>`;
+}
+
+// wire input → อัปเดตหลอดสด (inputId → containerId)
+function wireStrength(inputId, containerId) {
+  const inp = document.getElementById(inputId);
+  const box = document.getElementById(containerId);
+  if (!inp || !box) return;
+  const upd = () => { box.innerHTML = strengthWidgetHTML(inp.value); };
+  inp.addEventListener("input", upd);
+  upd();
+}
+
+// ตรวจรหัสก่อนสมัคร/เปลี่ยน: คืน error string หรือ null ถ้าผ่าน
+function validatePassword(pw, confirm) {
+  if (!pw || pw.length < PW_MIN) return `รหัสผ่านต้องมีอย่างน้อย ${PW_MIN} ตัว`;
+  if (passwordStrength(pw).score < 1) return "รหัสผ่านอ่อนเกินไป ลองเพิ่มตัวเลข/ตัวพิมพ์ใหญ่";
+  if (confirm !== undefined && pw !== confirm) return "รหัสผ่านทั้งสองช่องไม่ตรงกัน";
+  return null;
 }
 
 /* ---------- Data fetchers ---------- */
@@ -189,7 +248,7 @@ function viewDashboard() {
   const roadmapSection = mainPath ? `
     <div class="db-card p-5 mb-4">
       <div class="flex items-start gap-3 mb-4">
-        <div class="w-10 h-10 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-xl shrink-0">🎯</div>
+        <div class="w-10 h-10 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">${sl("target", { size: 20, color: "#c2d90f" })}</div>
         <div class="flex-1 min-w-0">
           <div class="font-display font-bold text-[16px] text-on-surface truncate">${esc(mainPath.programName || mainPath.name)}</div>
           <div class="text-[12px] text-on-surface-variant truncate">${mainPath.uni ? esc(mainPath.uni) + " · " : ""}TCAS Portfolio</div>
@@ -212,7 +271,7 @@ function viewDashboard() {
       </div>
     </div>` : `
     <div class="db-card p-6 mb-4 flex flex-col items-center text-center gap-3">
-      <span class="text-4xl">🗺️</span>
+      <span>${sl("map", { size: 40, color: "#9aa090" })}</span>
       <p class="text-on-surface-variant">ยังไม่มีเส้นทาง</p>
       <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold px-5 py-2.5 rounded-xl border-b-4 border-[#96a80a]">
         ${icon("add")} สร้างเส้นทางใหม่
@@ -222,7 +281,7 @@ function viewDashboard() {
   // path finder banner
   const banner = `
     <div class="db-card p-4 mb-4 flex items-center gap-4" style="background:rgba(194,217,15,.06);border-color:rgba(194,217,15,.2)">
-      <span class="text-2xl shrink-0">🔍</span>
+      <span class="shrink-0">${sl("search", { size: 26, color: "#c2d90f" })}</span>
       <div class="flex-1 min-w-0">
         <div class="font-display font-bold text-[15px] text-on-surface">ยังไม่แน่ใจเส้นทาง? ลอง Path Finder</div>
         <div class="text-[12px] text-on-surface-variant">ตอบคำถาม 5 ข้อ · ระบบจะแนะนำเส้นทางที่เหมาะกับคุณ</div>
@@ -291,7 +350,7 @@ function viewDashboard() {
     <div class="flex items-start justify-between mb-5 gap-4">
       <div>
         <h1 class="font-display font-bold text-[22px] text-on-surface leading-tight">
-          สวัสดี, ${esc(name)} 👋
+          สวัสดี, ${esc(name)} <span class="inline-block align-middle">${sl("wave", { size: 22, color: "#c2d90f" })}</span>
         </h1>
         <p class="text-[13px] text-on-surface-variant mt-0.5">${dateStr}</p>
       </div>
@@ -431,7 +490,7 @@ function viewNamePath() {
 function viewTrack() {
   const cards = TRACKS.map((t) => `
     <button data-track="${t.key}" class="tactile-button w-full text-left flex items-center gap-md bg-surface-container-lowest border-2 border-surface-variant rounded-xl p-md shadow-[0_4px_0_#0d0f08]">
-      <div class="text-3xl shrink-0">${t.emoji}</div>
+      <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">${sl(t.icon, { size: 24, color: "#c2d90f" })}</div>
       <div class="flex-1">
         <div class="font-headline font-bold text-[18px] text-on-surface">${t.label}</div>
         <div class="text-[13px] text-on-surface-variant">${t.desc}</div>
@@ -520,7 +579,7 @@ async function viewCooking() {
   $app().innerHTML = `
     <div class="dotted-grid min-h-screen flex flex-col items-center justify-center gap-lg px-md text-center">
       <div class="cook-spinner"></div>
-      <div class="text-4xl">🍳</div>
+      <div>${sl("sparkles", { size: 44, color: "#c2d90f" })}</div>
       <h2 class="font-display font-extrabold text-[22px] text-primary">กำลังปรุงโรดแมปให้คุณ...</h2>
       <p class="text-on-surface-variant">รวบรวมรอบ TCAS และวิชาที่ต้องใช้</p>
     </div>`;
@@ -716,10 +775,57 @@ function viewAuth() {
         </div>
       </div>
       <button id="au-login-submit" class="ob-btn-primary">เข้าสู่ระบบ</button>
+      <div class="text-center">
+        <button id="au-forgot" class="text-on-surface-variant font-bold text-[13px] hover:text-primary transition-colors">ลืมรหัสผ่าน?</button>
+      </div>
     </div>
 
     <div class="text-center">
       <button id="au-guest" class="text-on-surface-variant font-bold text-[13px] underline underline-offset-4">ข้ามไปก่อน (โหมดผู้เยี่ยมชม)</button>
+    </div>
+  `);
+}
+
+/* --- forgot password (ส่งลิงก์ reset ทางอีเมล) --- */
+function viewForgotPassword() {
+  return shellCentered(`
+    <div class="mb-6 pt-2">
+      <button data-nav="auth" class="mb-5 inline-flex items-center gap-1 text-on-surface-variant font-bold text-[15px]">${sl("arrow_left",{size:18})} กลับ</button>
+      <h1 class="font-display font-bold text-[24px] text-on-surface">ลืมรหัสผ่าน?</h1>
+      <p class="text-on-surface-variant mt-1 text-[14px]">กรอกอีเมล เราจะส่งลิงก์ตั้งรหัสใหม่ให้</p>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="ob-label">อีเมล</label>
+        <input id="fp-email" type="email" autocomplete="email" placeholder="you@email.com" class="ob-input" />
+      </div>
+      <button id="fp-submit" class="ob-btn-primary">${sl("bell",{size:16,color:"#16180f"})} ส่งลิงก์ตั้งรหัสใหม่</button>
+    </div>
+  `);
+}
+
+/* --- reset password (มาจากลิงก์อีเมล — มี recovery session แล้ว) --- */
+function viewResetPassword() {
+  return shellCentered(`
+    <div class="mb-6 pt-2 text-center">
+      <div class="w-16 h-16 mx-auto rounded-full bg-primary-container flex items-center justify-center mb-3 shadow-[0_4px_0_#6b7a08]">${sl("lock",{size:28,color:"#16180f"})}</div>
+      <h1 class="font-display font-bold text-[24px] text-on-surface">ตั้งรหัสผ่านใหม่</h1>
+      <p class="text-on-surface-variant mt-1 text-[14px]">เลือกรหัสใหม่ที่แข็งแรงและจำได้</p>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="ob-label">รหัสผ่านใหม่ <span class="text-on-surface-variant font-normal">(อย่างน้อย 8 ตัว)</span></label>
+        <div class="relative">
+          <input id="rp-pass" type="password" minlength="8" autocomplete="new-password" placeholder="••••••••" class="ob-input pr-12" />
+          <button type="button" id="rp-toggle" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant"><span class="material-symbols-outlined text-[20px]">visibility</span></button>
+        </div>
+        <div id="rp-strength"></div>
+      </div>
+      <div>
+        <label class="ob-label">ยืนยันรหัสผ่านใหม่</label>
+        <input id="rp-pass2" type="password" minlength="8" autocomplete="new-password" placeholder="••••••••" class="ob-input" />
+      </div>
+      <button id="rp-submit" class="ob-btn-primary">${sl("check",{size:16,color:"#16180f"})} บันทึกรหัสใหม่</button>
     </div>
   `);
 }
@@ -730,7 +836,7 @@ function viewProfile() {
   return shellApp(`
     <main class="max-w-sm mx-auto px-md py-xl">
       <div class="text-center mb-xl">
-        <div class="w-20 h-20 mx-auto rounded-full bg-primary-container flex items-center justify-center text-4xl shadow-[0_5px_0_#96a80a] mb-md">${loggedIn ? "🦉" : "👤"}</div>
+        <div class="w-20 h-20 mx-auto rounded-full bg-primary-container flex items-center justify-center shadow-[0_5px_0_#96a80a] mb-md">${loggedIn ? sl("graduation", { size: 36, color: "#16180f" }) : sl("person", { size: 36, color: "#16180f" })}</div>
         <h1 class="font-display font-bold text-[24px] text-on-surface">${loggedIn ? esc(displayName()) : "โหมดผู้เยี่ยมชม"}</h1>
         ${loggedIn ? `<p class="text-on-surface-variant mt-1">${esc(state.user.email)}</p>` : `<p class="text-on-surface-variant mt-1">เข้าสู่ระบบเพื่อบันทึกเส้นทางถาวร</p>`}
       </div>
@@ -792,7 +898,7 @@ function dashShell(content) {
       <!-- user chip -->
       <div class="p-3 border-t border-surface-variant">
         <button data-nav="profile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container transition-all">
-          <div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center font-bold text-on-primary text-[14px] shrink-0 shadow-[0_2px_0_#96a80a]">🦉</div>
+          <div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center font-bold text-on-primary text-[14px] shrink-0 shadow-[0_2px_0_#96a80a]">${sl("graduation", { size: 18, color: "#16180f" })}</div>
           <div class="flex-1 min-w-0 text-left">
             <div class="font-bold text-[13px] text-on-surface truncate">${esc(name)}</div>
             <div class="text-[11px] text-on-surface-variant">${userGrade} · GPA ${userGpa}</div>
@@ -808,7 +914,7 @@ function dashShell(content) {
         <!-- mobile topbar -->
         <header class="md:hidden sticky top-0 z-30 bg-surface border-b border-surface-variant px-4 py-3 flex items-center justify-between">
           ${(typeof nexLogo === "function") ? nexLogo("full", "lime", "h-6 w-auto") : `<span class="font-display font-bold text-[16px] text-primary">NEX</span>`}
-          <button data-nav="profile" class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center shadow-[0_2px_0_#96a80a]">🦉</button>
+          <button data-nav="profile" class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center shadow-[0_2px_0_#96a80a]">${sl("graduation", { size: 18, color: "#16180f" })}</button>
         </header>
         <main class="flex-1 p-4 md:p-6 overflow-y-auto">
           ${content}
@@ -840,7 +946,7 @@ function topAppBar() {
   <header class="sticky top-0 z-30 bg-surface border-b-4 border-surface-variant">
     <div class="max-w-5xl mx-auto flex justify-between items-center px-md py-2">
       <div class="flex items-center gap-sm">
-        <div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-lg shadow-[0_3px_0_#96a80a]">🦉</div>
+        <div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center shadow-[0_3px_0_#96a80a]">${sl("graduation", { size: 18, color: "#16180f" })}</div>
         <span class="font-display font-extrabold text-[20px] text-primary tracking-tight">NEXTSTEP</span>
       </div>
       <nav class="hidden md:flex items-center gap-lg">
@@ -849,7 +955,7 @@ function topAppBar() {
         ${navItem("person", "โปรไฟล์", false, "profile")}
       </nav>
       <div class="flex items-center gap-sm bg-surface-container-high px-sm py-1 rounded-lg border-2 border-surface-variant font-bold text-[14px]">
-        <span style="color:#ff9800">🔥 7</span><span class="text-surface-variant">|</span><span style="color:#2196f3">💎 120</span>
+        <span class="flex items-center gap-1" style="color:#ff9800">${sl("fire", { size: 15, color: "#ff9800" })} 7</span><span class="text-surface-variant">|</span><span class="flex items-center gap-1" style="color:#2196f3">${sl("gem", { size: 15, color: "#2196f3" })} 120</span>
       </div>
     </div>
   </header>`;
@@ -886,6 +992,8 @@ function render() {
 
   // sync views — render then wire
   if (v === "auth")         $app().innerHTML = viewAuth();
+  else if (v === "forgot-password") $app().innerHTML = viewForgotPassword();
+  else if (v === "reset-password")  $app().innerHTML = viewResetPassword();
   else if (v === "career")  $app().innerHTML = viewCareerPath();
   else if (v === "create-path" || v === "create-path-flow") $app().innerHTML = viewDashboard();
   else if (v === "name-path") $app().innerHTML = viewNamePath();
@@ -940,8 +1048,53 @@ function wireView(v) {
       btn.disabled = false; btn.innerHTML = `${icon("arrow_forward")} เข้าสู่ระบบ`;
     });
 
+    document.getElementById("au-forgot")?.addEventListener("click", () => go("forgot-password"));
+
     document.getElementById("au-guest").addEventListener("click", () => {
       state.guest = true; go("create-path");
+    });
+  }
+  if (v === "forgot-password") {
+    document.getElementById("fp-submit").addEventListener("click", async () => {
+      const email = document.getElementById("fp-email").value.trim();
+      if (!email || !email.includes("@")) { toast("กรอกอีเมลให้ถูกต้องนะ"); return; }
+      const btn = document.getElementById("fp-submit");
+      btn.disabled = true; btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังส่ง...`;
+      const { error } = await db.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + window.location.pathname,
+      });
+      btn.disabled = false; btn.innerHTML = `${sl("bell",{size:16,color:"#16180f"})} ส่งลิงก์ตั้งรหัสใหม่`;
+      if (error) { toast(authErr(error)); return; }
+      // ไม่บอกว่าอีเมลมีจริงไหม (กัน enumeration) — แจ้งกลางๆ
+      toast("ถ้าอีเมลนี้มีบัญชี เราส่งลิงก์ไปแล้ว เช็คกล่องจดหมายนะ");
+      setTimeout(() => go("auth"), 2000);
+    });
+  }
+  if (v === "reset-password") {
+    const tgl = document.getElementById("rp-toggle");
+    if (tgl) tgl.addEventListener("click", () => {
+      const inp = document.getElementById("rp-pass");
+      const show = inp.type === "password";
+      inp.type = show ? "text" : "password";
+      tgl.innerHTML = `<span class="material-symbols-outlined text-[20px]">${show ? "visibility_off" : "visibility"}</span>`;
+    });
+    wireStrength("rp-pass", "rp-strength");
+    document.getElementById("rp-submit").addEventListener("click", async () => {
+      const pass = document.getElementById("rp-pass").value;
+      const pass2 = document.getElementById("rp-pass2").value;
+      const err = validatePassword(pass, pass2);
+      if (err) { toast(err); return; }
+      const btn = document.getElementById("rp-submit");
+      btn.disabled = true; btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`;
+      const { error } = await db.auth.updateUser({ password: pass });
+      if (error) {
+        btn.disabled = false; btn.innerHTML = `${sl("check",{size:16,color:"#16180f"})} บันทึกรหัสใหม่`;
+        toast(authErr(error)); return;
+      }
+      // เคลียร์ hash recovery ออกจาก URL
+      try { history.replaceState(null, "", window.location.pathname); } catch {}
+      toast("เปลี่ยนรหัสผ่านสำเร็จ");
+      await routeAfterAuth();
     });
   }
   // profile/settings wire themselves inside their async render — skip here
@@ -983,14 +1136,35 @@ function openSavedPath(p) {
   go("cooking");
 }
 
-/* Boot — restore session, then route */
+/* Boot — restore session, then route by onboarded + handle password recovery */
 async function boot() {
+  // ฟัง auth event (Google redirect, recovery ฯลฯ) — sync state
+  db.auth.onAuthStateChange((event, session) => {
+    state.user = session?.user || null;
+    if (event === "PASSWORD_RECOVERY") go("reset-password");
+  });
+
+  // ลิงก์ reset จากอีเมลมาพร้อม hash type=recovery
+  const isRecovery = /type=recovery/.test(window.location.hash || "");
+
   try {
     const { data } = await db.auth.getSession();
     state.user = data?.session?.user || null;
-    db.auth.onAuthStateChange((_e, session) => { state.user = session?.user || null; });
   } catch { state.user = null; }
-  state.view = state.user ? "create-path" : "auth";
-  render();
+
+  if (isRecovery && state.user) { go("reset-password"); return; }
+  await routeAfterAuth();
+}
+
+// route หลังรู้ session แล้ว: ยังไม่ตอบคำถาม → onboarding(profile), ตอบแล้ว → dashboard
+async function routeAfterAuth() {
+  if (!state.user) { go("auth"); return; }
+  let onboarded = true;
+  try {
+    const { data } = await db.from("users_profile").select("onboarded").eq("id", state.user.id).maybeSingle();
+    onboarded = data?.onboarded === true;
+  } catch { /* network fail → ปล่อยเข้า dashboard */ }
+  if (!onboarded) { startOnboarding("profile"); return; }
+  go("create-path");
 }
 window.addEventListener("DOMContentLoaded", boot);

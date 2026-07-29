@@ -192,19 +192,19 @@ async function viewCalendar() {
 // ── Career Path ───────────────────────────────────────────────
 function viewCareerPath() {
   const careers = [
-    { id:1, icon:"💻", title:"วิศวกรซอฟต์แวร์", salary:"45K–120K/เดือน", demand:"สูงมาก", faculties:["IT","วิศวะ"], skills:["Programming","System Design","Cloud"] },
-    { id:2, icon:"🏥", title:"แพทย์", salary:"60K–200K/เดือน", demand:"สูง", faculties:["แพทย์"], skills:["Clinical","Research","Communication"] },
-    { id:3, icon:"⚖️", title:"ทนายความ / นักกฎหมาย", salary:"35K–150K/เดือน", demand:"ปานกลาง", faculties:["นิติ","รัฐศาสตร์"], skills:["Legal Analysis","Research","Advocacy"] },
-    { id:4, icon:"📊", title:"นักวิเคราะห์ข้อมูล", salary:"40K–100K/เดือน", demand:"สูงมาก", faculties:["IT","วิทยาศาสตร์","พาณิชย์"], skills:["Python/R","SQL","Statistics","ML"] },
-    { id:5, icon:"🎨", title:"นักออกแบบ UX/UI", salary:"35K–90K/เดือน", demand:"สูง", faculties:["IT","ศิลปกรรม","นิเทศ"], skills:["Figma","Research","Prototyping"] },
-    { id:6, icon:"📡", title:"วิศวกรไฟฟ้า/สื่อสาร", salary:"40K–100K/เดือน", demand:"สูง", faculties:["วิศวะ"], skills:["Electronics","Telecom","Control Systems"] },
+    { id:1, icon:"code", title:"วิศวกรซอฟต์แวร์", salary:"45K–120K/เดือน", demand:"สูงมาก", faculties:["IT","วิศวะ"], skills:["Programming","System Design","Cloud"] },
+    { id:2, icon:"health", title:"แพทย์", salary:"60K–200K/เดือน", demand:"สูง", faculties:["แพทย์"], skills:["Clinical","Research","Communication"] },
+    { id:3, icon:"scale", title:"ทนายความ / นักกฎหมาย", salary:"35K–150K/เดือน", demand:"ปานกลาง", faculties:["นิติ","รัฐศาสตร์"], skills:["Legal Analysis","Research","Advocacy"] },
+    { id:4, icon:"chart", title:"นักวิเคราะห์ข้อมูล", salary:"40K–100K/เดือน", demand:"สูงมาก", faculties:["IT","วิทยาศาสตร์","พาณิชย์"], skills:["Python/R","SQL","Statistics","ML"] },
+    { id:5, icon:"palette", title:"นักออกแบบ UX/UI", salary:"35K–90K/เดือน", demand:"สูง", faculties:["IT","ศิลปกรรม","นิเทศ"], skills:["Figma","Research","Prototyping"] },
+    { id:6, icon:"signal", title:"วิศวกรไฟฟ้า/สื่อสาร", salary:"40K–100K/เดือน", demand:"สูง", faculties:["วิศวะ"], skills:["Electronics","Telecom","Control Systems"] },
   ];
   const demandCls = { "สูงมาก":"bg-primary/20 text-primary", "สูง":"bg-tertiary/20 text-tertiary", "ปานกลาง":"bg-secondary/20 text-secondary" };
 
   const cards = careers.map(c => `
     <div class="db-card p-5 cursor-pointer hover:border-primary/40 transition-colors">
       <div class="flex items-start gap-3 mb-3">
-        <span class="text-3xl shrink-0">${c.icon}</span>
+        <span class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">${sl(c.icon, { size: 26, color: "#c2d90f" })}</span>
         <div class="flex-1 min-w-0">
           <h3 class="font-display font-bold text-[16px] text-on-surface">${esc(c.title)}</h3>
           <p class="font-mono text-[13px] text-primary mt-0.5">${esc(c.salary)}</p>
@@ -398,7 +398,7 @@ async function viewProfileFull() {
   if (!loggedIn) {
     document.getElementById("profile-body").innerHTML = `
       <div class="text-center py-8">
-        <div class="text-5xl mb-4">👤</div>
+        <div class="mb-4 flex justify-center">${sl("person", { size: 48, color: "#9aa090" })}</div>
         <h2 class="font-display font-bold text-[20px] text-on-surface mb-2">โหมดผู้เยี่ยมชม</h2>
         <p class="text-on-surface-variant mb-6">เข้าสู่ระบบเพื่อบันทึกข้อมูลและเส้นทาง</p>
         <button data-nav="auth" class="tactile-button bg-primary-container text-on-primary font-display font-bold px-6 py-3 rounded-xl border-b-4 border-[#96a80a]">
@@ -505,7 +505,7 @@ function wireProfile() {
       if (error) throw error;
       const { data } = db.storage.from("avatars").getPublicUrl(`${state.user.id}/avatar.${ext}`);
       state._avatarUrl = data.publicUrl + "?t=" + Date.now();
-      toast("อัปเดตรูปโปรไฟล์แล้ว ✓");
+      toast("อัปเดตรูปโปรไฟล์แล้ว");
       go("profile");
     } catch { toast("อัปโหลดไม่สำเร็จ — อาจต้องสร้าง bucket 'avatars' ใน Supabase Storage"); }
   });
@@ -538,7 +538,7 @@ function wireProfile() {
       // 2. Mirror first_name into auth metadata so displayName() works instantly
       await db.auth.updateUser({ data: { first_name: fname } });
 
-      toast("บันทึกสำเร็จ ✓");
+      toast("บันทึกสำเร็จ");
       btn.disabled = false;
       btn.innerHTML = `${sl("check",{size:18,color:"#16180f"})} บันทึกข้อมูล`;
     } catch {
@@ -555,6 +555,10 @@ function wireProfile() {
 async function viewSettings() {
   const theme = localStorage.getItem("nextstep_theme") || "dark";
   const notif = localStorage.getItem("nextstep_notif") !== "false";
+  // ผู้ใช้มีรหัสผ่าน (email identity) ไหม — Google-only ยังไม่มี → เป็น "ตั้งรหัส"
+  const hasPassword = (state.user?.identities || []).some(i => i.provider === "email")
+    || state.user?.app_metadata?.provider === "email"
+    || (state.user?.app_metadata?.providers || []).includes("email");
 
   const toggle = (id, on, label, sub) => `
     <div class="db-card p-4 flex items-center justify-between gap-3">
@@ -576,7 +580,7 @@ async function viewSettings() {
       <div class="db-card p-4 flex gap-3">
         ${["dark","light"].map(t=>`
           <button data-theme="${t}" class="flex-1 py-3 rounded-xl border-2 ${theme===t?"border-primary bg-primary/10":"border-surface-variant"} font-display font-bold text-[13px] text-on-surface flex items-center justify-center gap-2 transition-colors">
-            ${t==="dark"?"🌙":"☀️"} ${t==="dark"?"โหมดมืด":"โหมดสว่าง"}
+            ${t==="dark"?sl("moon",{size:16}):sl("sun",{size:16})} ${t==="dark"?"โหมดมืด":"โหมดสว่าง"}
           </button>`).join("")}
       </div>
     </div>
@@ -588,6 +592,28 @@ async function viewSettings() {
 
     <div class="space-y-2 mb-6">
       <h2 class="font-display font-bold text-[13px] text-on-surface-variant px-1 mb-1">บัญชี</h2>
+      ${state.user ? `
+      <!-- เปลี่ยน/ตั้งรหัสผ่าน -->
+      <button id="btn-toggle-pw" class="db-card p-4 w-full flex items-center justify-between hover:border-primary/40 transition-colors">
+        <span class="font-bold text-[14px] text-on-surface flex items-center gap-2">${sl("lock",{size:16,color:"#9aa090"})} ${hasPassword ? "เปลี่ยนรหัสผ่าน" : "ตั้งรหัสผ่าน (เข้าสู่ระบบด้วยอีเมล)"}</span>
+        ${sl("arrow_right",{size:16,color:"#9aa090"})}
+      </button>
+      <div id="pw-form" class="hidden db-card p-4 space-y-3">
+        ${hasPassword ? `<div>
+          <label class="ob-label">รหัสผ่านปัจจุบัน</label>
+          <input id="cp-current" type="password" autocomplete="current-password" placeholder="••••••••" class="ob-input" />
+        </div>` : ""}
+        <div>
+          <label class="ob-label">รหัสผ่านใหม่ <span class="text-on-surface-variant font-normal">(อย่างน้อย 8 ตัว)</span></label>
+          <input id="cp-new" type="password" autocomplete="new-password" placeholder="••••••••" class="ob-input" />
+          <div id="cp-strength"></div>
+        </div>
+        <div>
+          <label class="ob-label">ยืนยันรหัสผ่านใหม่</label>
+          <input id="cp-confirm" type="password" autocomplete="new-password" placeholder="••••••••" class="ob-input" />
+        </div>
+        <button id="cp-submit" class="ob-btn-primary">${sl("check",{size:16,color:"#16180f"})} ${hasPassword ? "เปลี่ยนรหัสผ่าน" : "ตั้งรหัสผ่าน"}</button>
+      </div>` : ""}
       <div class="db-card p-4 flex items-center justify-between">
         <span class="font-bold text-[14px] text-on-surface">เวอร์ชั่น</span>
         <span class="font-mono text-[13px] text-on-surface-variant">1.0.0-beta</span>
@@ -614,4 +640,32 @@ async function viewSettings() {
     go("settings");
   });
   document.getElementById("btn-logout")?.addEventListener("click", doLogout);
+
+  // เปลี่ยน/ตั้งรหัสผ่าน
+  document.getElementById("btn-toggle-pw")?.addEventListener("click", () => {
+    const f = document.getElementById("pw-form");
+    if (f) { f.classList.toggle("hidden"); if (!f.classList.contains("hidden")) wireStrength("cp-new", "cp-strength"); }
+  });
+  document.getElementById("cp-submit")?.addEventListener("click", async () => {
+    const cur = document.getElementById("cp-current")?.value || "";
+    const nw = document.getElementById("cp-new").value;
+    const cf = document.getElementById("cp-confirm").value;
+    const err = validatePassword(nw, cf);
+    if (err) { toast(err); return; }
+
+    const btn = document.getElementById("cp-submit");
+    btn.disabled = true; btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`;
+    const reset = () => { btn.disabled = false; btn.innerHTML = `${sl("check",{size:16,color:"#16180f"})} ${hasPassword ? "เปลี่ยนรหัสผ่าน" : "ตั้งรหัสผ่าน"}`; };
+
+    // reauth ด้วยรหัสเดิมก่อน (เฉพาะผู้ใช้ที่มีรหัสอยู่แล้ว) — ปลอดภัย
+    if (hasPassword) {
+      if (!cur) { toast("กรอกรหัสผ่านปัจจุบันด้วยนะ"); reset(); return; }
+      const { error: reErr } = await db.auth.signInWithPassword({ email: state.user.email, password: cur });
+      if (reErr) { toast("รหัสผ่านปัจจุบันไม่ถูกต้อง"); reset(); return; }
+    }
+    const { error } = await db.auth.updateUser({ password: nw });
+    if (error) { toast(authErr(error)); reset(); return; }
+    toast(hasPassword ? "เปลี่ยนรหัสผ่านสำเร็จ" : "ตั้งรหัสผ่านสำเร็จ ใช้อีเมล+รหัสนี้ล็อกอินได้แล้ว");
+    go("settings");
+  });
 }
