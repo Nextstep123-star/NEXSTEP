@@ -36,6 +36,8 @@ const state = {
   view: "auth",
   authMode: "login", // 'login' | 'register'
   user: null,        // Supabase auth user (null = guest / signed out)
+  profile: null,     // users_profile row (cached จริงจาก DB)
+  prefs: null,       // user_preferences row
   guest: false,
   flow: { name: "", track: null, facultyId: null, facultyName: "", program: null },
 };
@@ -101,7 +103,7 @@ async function doLogin(email, password) {
 }
 async function doLogout() {
   try { await db.auth.signOut(); } catch {}
-  state.user = null; state.guest = false;
+  state.user = null; state.guest = false; state.profile = null; state.prefs = null;
   go("auth");
 }
 
@@ -226,12 +228,13 @@ function viewDashboard() {
   const paths = getPaths();
   const mainId = getMain();
   const mainPath = paths.find((p) => p.id === mainId) || paths[0];
-  const name = displayName() || "นักเรียน";
-  const gpax = state._profileGpax || "—"; // filled by profile fetch cache
+  const name = state.profile?.first_name || displayName() || "นักเรียน";
+  const gpax = (state.profile?.gpa != null) ? Number(state.profile.gpa).toFixed(2) : "—";
+  const gradeSub = state.profile?.education_level ? esc(state.profile.education_level) : "";
 
   // stat cards
   const stats = [
-    { label: "GPA ปัจจุบัน", value: gpax, sub: "", subCls: "" },
+    { label: "GPA ปัจจุบัน", value: gpax, sub: gradeSub, subCls: "text-on-surface-variant" },
     { label: "ความคืบหน้า", value: "—", sub: mainPath ? esc(mainPath.name) : "ยังไม่มีเส้นทาง", subCls: "text-primary" },
     { label: "กิจกรรมใกล้ถึง", value: "—", sub: "", subCls: "" },
     { label: "วันสอบถัดไป", value: "—", sub: "", subCls: "" },
@@ -859,9 +862,10 @@ function shellApp(inner) {
 
 /* Dashboard layout: sidebar (desktop) + scrollable main */
 function dashShell(content) {
-  const name = displayName() || "นักเรียน";
-  const userGrade = "ม.5"; // Phase 3: from users_profile
-  const userGpa = "3.72";  // Phase 3: from users_profile
+  // ใช้ข้อมูลจริงจาก state.profile (โหลดตอน login/boot)
+  const name = state.profile?.first_name || displayName() || "นักเรียน";
+  const userGrade = state.profile?.education_level || "—";
+  const userGpa = (state.profile?.gpa != null) ? Number(state.profile.gpa).toFixed(2) : "—";
 
   const cv = state.view; // current view for active highlighting
   const sideNav = (icName, label, view) => {
@@ -901,7 +905,7 @@ function dashShell(content) {
           <div class="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center font-bold text-on-primary text-[14px] shrink-0 shadow-[0_2px_0_#96a80a]">${sl("graduation", { size: 18, color: "#16180f" })}</div>
           <div class="flex-1 min-w-0 text-left">
             <div class="font-bold text-[13px] text-on-surface truncate">${esc(name)}</div>
-            <div class="text-[11px] text-on-surface-variant">${userGrade} · GPA ${userGpa}</div>
+            <div class="text-[11px] text-on-surface-variant truncate">${[userGrade !== "—" ? userGrade : null, userGpa !== "—" ? "GPA " + userGpa : null].filter(Boolean).join(" · ") || esc(state.user?.email || "")}</div>
           </div>
         </button>
       </div>
@@ -1156,15 +1160,25 @@ async function boot() {
   await routeAfterAuth();
 }
 
+// โหลด profile จริงจาก DB เก็บไว้ใน state (ใช้ทั้ง dashboard/sidebar/profile)
+async function loadProfile() {
+  if (!state.user) { state.profile = null; state.prefs = null; return null; }
+  try {
+    const [{ data: p }, { data: pr }] = await Promise.all([
+      db.from("users_profile").select("*").eq("id", state.user.id).maybeSingle(),
+      db.from("user_preferences").select("*").eq("user_id", state.user.id).maybeSingle(),
+    ]);
+    state.profile = p || null;
+    state.prefs = pr || null;
+    return state.profile;
+  } catch { return state.profile || null; }
+}
+
 // route หลังรู้ session แล้ว: ยังไม่ตอบคำถาม → onboarding(profile), ตอบแล้ว → dashboard
 async function routeAfterAuth() {
   if (!state.user) { go("auth"); return; }
-  let onboarded = true;
-  try {
-    const { data } = await db.from("users_profile").select("onboarded").eq("id", state.user.id).maybeSingle();
-    onboarded = data?.onboarded === true;
-  } catch { /* network fail → ปล่อยเข้า dashboard */ }
-  if (!onboarded) { startOnboarding("profile"); return; }
+  const p = await loadProfile();               // ดึงข้อมูลจริงมา cache
+  if (!p || p.onboarded !== true) { startOnboarding("profile"); return; }
   go("create-path");
 }
 window.addEventListener("DOMContentLoaded", boot);

@@ -171,39 +171,50 @@ input:-webkit-autofill:active {
   caret-color: var(--on-surface);
 }
 
-/* ob-input — redesigned: bigger, clearer, lime focus ring */
+/* ob-input — dark bg + bright text. !important to beat @tailwindcss/forms base styles */
 .ob-input {
   width: 100%;
-  background: #1f2119;
-  border: 1.5px solid #3a3f34;
+  background: #202318 !important;
+  border: 1.5px solid #4a5240;
   border-radius: 16px;
   padding: 16px 18px;
   font-family: var(--font-body);
   font-size: 16px;
-  font-weight: 500;
-  color: #eef0e6;
-  -webkit-text-fill-color: #eef0e6;
+  font-weight: 600;
+  color: #f4f6ec !important;
+  -webkit-text-fill-color: #f4f6ec !important;
   caret-color: #c2d90f;
   outline: none;
   transition: border-color .18s, box-shadow .18s, background .18s;
-  box-shadow: 0 1px 3px rgba(0,0,0,.3) inset;
   -webkit-appearance: none;
   appearance: none;
 }
 .ob-input::placeholder {
-  color: #6b7a08;
-  -webkit-text-fill-color: #6b7a08;
-  opacity: 1;
+  color: #8b9280 !important;           /* อ่านออกชัดบนพื้นเข้ม */
+  -webkit-text-fill-color: #8b9280 !important;
+  opacity: 1 !important;
+  font-weight: 500;
 }
+.ob-input:hover { border-color: #5a6550; }
+/* dropdown option ในธีมมืด */
+.ob-input option { background: #202318; color: #f4f6ec; }
 /* override @tailwindcss/forms blue focus ring → lime (needs !important) */
 .ob-input:focus,
 input.ob-input:focus,
 select.ob-input:focus {
   border-color: #c2d90f !important;
-  box-shadow: 0 0 0 3px rgba(194,217,15,.22), 0 1px 3px rgba(0,0,0,.3) inset !important;
+  box-shadow: 0 0 0 3px rgba(194,217,15,.22) !important;
   outline: none !important;
   --tw-ring-color: transparent !important;
-  background: #23261c;
+  background: #262a1c !important;
+}
+/* autofill (password managers) — keep dark bg + bright text */
+.ob-input:-webkit-autofill,
+.ob-input:-webkit-autofill:hover,
+.ob-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 40px #202318 inset !important;
+  -webkit-text-fill-color: #f4f6ec !important;
+  caret-color: #c2d90f !important;
 }
 .ob-input:not(:placeholder-shown) {
   border-color: #5a6540;

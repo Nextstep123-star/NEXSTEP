@@ -9,3 +9,5 @@ fix_encoding.mjs
 
 shoot_live.mjs
 shoot_auth.mjs
+shoot_profile.mjs
+shoot_login.mjs

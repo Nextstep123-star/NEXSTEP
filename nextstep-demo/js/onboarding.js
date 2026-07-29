@@ -204,7 +204,10 @@ function obComplete(name) {
       <h2 class="font-display font-bold text-[26px] text-primary mb-2">ยินดีต้อนรับสู่ NEXTSTEP!</h2>
       <p class="text-on-surface-variant text-[16px]">สวัสดี ${obEsc(name)} พร้อมแล้ว ไปวางแผนกัน</p>
     </div>`;
-  setTimeout(() => { if (typeof go === "function") go("create-path"); }, reduce ? 600 : 1600);
+  setTimeout(async () => {
+    if (typeof loadProfile === "function") await loadProfile(); // refresh cache ให้ dashboard/sidebar เห็นข้อมูลจริงทันที
+    if (typeof go === "function") go("create-path");
+  }, reduce ? 600 : 1600);
 }
 
 // ---- render into #app ----

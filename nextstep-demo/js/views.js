@@ -409,24 +409,19 @@ async function viewProfileFull() {
     return;
   }
 
-  // Fetch profile from DB (source of truth — not user_metadata)
-  let profile = {};
-  let prefs = {};
-  try {
-    const [{ data: p }, { data: pr }] = await Promise.all([
-      db.from("users_profile").select("*").eq("id", state.user.id).maybeSingle(),
-      db.from("user_preferences").select("*").eq("user_id", state.user.id).maybeSingle(),
-    ]);
-    profile = p || {};
-    prefs = pr || {};
-  } catch { }
+  // ดึง profile จริงจาก DB ผ่าน cache กลาง (source of truth)
+  if (typeof loadProfile === "function") await loadProfile();
+  const profile = state.profile || {};
+  const prefs = state.prefs || {};
 
   const name = profile.first_name || state.user?.user_metadata?.first_name || "";
   const email = state.user.email || "";
   const avatarUrl = state._avatarUrl || null;
   const initial = (name || email).charAt(0).toUpperCase() || "?";
 
-  document.getElementById("profile-body").innerHTML = `
+  const profileBody = document.getElementById("profile-body");
+  if (!profileBody) return; // view เปลี่ยนไปแล้วระหว่าง await — กัน null crash
+  profileBody.innerHTML = `
     <!-- Avatar -->
     <div class="flex flex-col items-center mb-8">
       <div class="relative mb-3">
@@ -527,16 +522,18 @@ function wireProfile() {
     btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`;
 
     try {
-      // 1. Save to users_profile (main source of truth)
-      await db.from("users_profile").upsert({
-        id: state.user.id,
+      // 1. Save to users_profile (main source of truth) — update ให้ตรง + คง onboarded
+      const { error } = await db.from("users_profile").update({
         first_name: fname,
         education_level: grade,
         school_name: school,
         gpa: gpa,
-      });
+      }).eq("id", state.user.id);
+      if (error) throw error;
       // 2. Mirror first_name into auth metadata so displayName() works instantly
       await db.auth.updateUser({ data: { first_name: fname } });
+      // 3. refresh cache → dashboard/sidebar เห็นข้อมูลใหม่ทันที
+      if (typeof loadProfile === "function") await loadProfile();
 
       toast("บันทึกสำเร็จ");
       btn.disabled = false;
