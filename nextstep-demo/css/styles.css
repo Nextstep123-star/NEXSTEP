@@ -94,21 +94,21 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--o
    Dashboard layout (sidebar + main)
    ============================================================ */
 
-/* full-page grid */
+/* full-page grid — minmax(0,1fr) กัน min-content ดันจนล้น */
 .db-layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   min-height: 100vh;
 }
 @media (max-width: 767px) {
-  .db-layout { grid-template-columns: 1fr; }
+  .db-layout { grid-template-columns: minmax(0, 1fr); }
   .db-sidebar { display: none; }
 }
 
 .db-sidebar { width: 220px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 
-/* main scroll area */
-.db-main { min-height: 100vh; background: var(--surface); }
+/* main scroll area — min-width:0 ให้ลูกหดได้, overflow-x:hidden กันล้นแนวนอน */
+.db-main { min-height: 100vh; min-width: 0; overflow-x: hidden; background: var(--surface); }
 
 /* card base */
 .db-card {

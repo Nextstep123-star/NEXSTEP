@@ -386,16 +386,54 @@ async function viewProfileFull() {
 
   // Show skeleton immediately
   document.getElementById("app").innerHTML = dashShell(`
-    <div class="max-w-md mx-auto">
+    <div class="max-w-md mx-auto w-full">
       <h1 class="font-display font-bold text-[22px] text-on-surface mb-5">โปรไฟล์</h1>
-      <div id="profile-body" class="flex justify-center py-8">
-        <div class="cook-spinner w-10 h-10" style="width:40px;height:40px;border-width:4px"></div>
+      <div id="profile-body">
+        <div class="flex justify-center py-8">
+          <div class="cook-spinner" style="width:40px;height:40px;border-width:4px"></div>
+        </div>
       </div>
     </div>
   `);
   wireCommon();
 
   if (!loggedIn) {
+    // guest ที่กรอกข้อมูลเริ่มต้นไว้ → แสดงข้อมูลของเขา + ชวนสมัครเพื่อบันทึกถาวร
+    const g = state.guest ? (state.profile || {}) : null;
+    if (g && g.first_name) {
+      const gInitial = (g.first_name || "?").charAt(0).toUpperCase();
+      const gMeta = [g.education_level, g.gpa != null ? "GPA " + Number(g.gpa).toFixed(2) : null].filter(Boolean).join(" · ");
+      document.getElementById("profile-body").innerHTML = `
+        <div class="flex flex-col items-center mb-6">
+          <div class="w-24 h-24 rounded-full bg-primary-container shadow-[0_4px_0_#6b7a08] flex items-center justify-center mb-3">
+            <span class="font-display font-bold text-[32px] text-on-primary">${esc(gInitial)}</span>
+          </div>
+          <h2 class="font-display font-bold text-[20px] text-on-surface">${esc(g.first_name)}</h2>
+          <p class="text-[13px] text-on-surface-variant">โหมดผู้เยี่ยมชม${gMeta ? " · " + esc(gMeta) : ""}</p>
+        </div>
+        <div class="db-card p-4 mb-4 flex items-start gap-3" style="background:rgba(194,217,15,.06);border-color:rgba(194,217,15,.2)">
+          ${sl("info",{size:20,color:"#c2d90f",cls:"shrink-0 mt-0.5"})}
+          <div class="text-[13px] text-on-surface-variant leading-relaxed">
+            คุณกำลังดูแบบผู้เยี่ยมชม ข้อมูลจะถูกเก็บไว้ในเครื่องนี้เท่านั้น<br/>
+            สมัครสมาชิกเพื่อบันทึกเส้นทางและข้อมูลถาวร
+          </div>
+        </div>
+        <button data-nav="auth" class="tactile-button w-full bg-primary-container text-on-primary font-display font-bold py-3.5 rounded-xl border-b-4 border-[#6b7a08] flex items-center justify-center gap-2 mb-3">
+          ${sl("add",{size:18,color:"#16180f"})} สมัครสมาชิกเพื่อบันทึกถาวร
+        </button>
+        <button id="btn-exit-guest" class="w-full py-3 rounded-xl border-2 border-surface-variant text-on-surface-variant font-display font-bold flex items-center justify-center gap-2 hover:border-primary/40 transition-colors">
+          ${sl("logout",{size:16})} ออกจากโหมดผู้เยี่ยมชม
+        </button>`;
+      wireCommon();
+      document.getElementById("btn-exit-guest")?.addEventListener("click", () => {
+        try { localStorage.removeItem("nextstep_guest"); } catch {}
+        state.guest = false; state.profile = null;
+        state.authStep = "intent";
+        go("auth");
+      });
+      return;
+    }
+
     document.getElementById("profile-body").innerHTML = `
       <div class="text-center py-8">
         <div class="mb-4 flex justify-center">${sl("person", { size: 48, color: "#9aa090" })}</div>
@@ -492,6 +530,13 @@ function wireProfile() {
   document.getElementById("avatar-input")?.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
     if (!file || !state.user) return;
+    if (state.admin) {
+      // โหมด Demo — พรีวิวรูปจากเครื่องเลย ไม่อัปโหลดขึ้น Storage
+      state._avatarUrl = URL.createObjectURL(file);
+      toast("อัปเดตรูปโปรไฟล์แล้ว (Demo)");
+      go("profile");
+      return;
+    }
     const ext = file.name.split(".").pop();
     try {
       const { error } = await db.storage.from("avatars").upload(
@@ -520,6 +565,16 @@ function wireProfile() {
 
     btn.disabled = true;
     btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`;
+
+    // admin/demo mode — บันทึกลง state อย่างเดียว (ไม่แตะ Supabase)
+    if (state.admin) {
+      state.profile = { ...state.profile, first_name: fname, education_level: grade, school_name: school, gpa };
+      state.user.user_metadata = { ...state.user.user_metadata, first_name: fname };
+      toast("บันทึกสำเร็จ (Demo)");
+      btn.disabled = false;
+      btn.innerHTML = `${sl("check",{size:18,color:"#16180f"})} บันทึกข้อมูล`;
+      return;
+    }
 
     try {
       // 1. Save to users_profile (main source of truth) — update ให้ตรง + คง onboarded
@@ -649,6 +704,8 @@ async function viewSettings() {
     const cf = document.getElementById("cp-confirm").value;
     const err = validatePassword(nw, cf);
     if (err) { toast(err); return; }
+
+    if (state.admin) { toast("โหมด Demo: ไม่เปลี่ยนรหัสจริง"); go("settings"); return; }
 
     const btn = document.getElementById("cp-submit");
     btn.disabled = true; btn.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังบันทึก...`;

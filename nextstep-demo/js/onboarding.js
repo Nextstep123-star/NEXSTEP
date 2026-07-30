@@ -153,7 +153,7 @@ async function obStep5() {
     <div id="ob-card">
       <p class="ob-q">อยากเข้าคณะอะไร? <span class="text-on-surface-variant text-[15px] font-normal">(เลือกได้หลายอัน)</span></p>
       <div class="flex flex-wrap gap-2 mt-3">${chips}</div>
-      <button id="ob-next" class="ob-btn-primary mt-5">${OB.mode === "profile" ? `เสร็จสิ้น ${obIcon("check")}` : `ถัดไป ${obIcon("arrow_forward")}`}</button>
+      <button id="ob-next" class="ob-btn-primary mt-5">${(OB.mode === "profile" || OB.mode === "guest") ? `เสร็จสิ้น ${obIcon("check")}` : `ถัดไป ${obIcon("arrow_forward")}`}</button>
     </div>`;
 }
 
@@ -319,9 +319,10 @@ function wireOB() {
         }
       });
     });
-    // step 5 = ขั้นสุดท้ายของ profile mode → บันทึกเลย · full mode → ไป step 6
+    // step 5 = ขั้นสุดท้ายของ profile/guest mode → จบเลย · full mode → ไป step 6
     document.getElementById("ob-next").addEventListener("click", () => {
       if (OB.mode === "profile") { finishProfileOnboarding(); }
+      else if (OB.mode === "guest") { finishGuestOnboarding(); }
       else { OB.dir = 1; OB.step++; renderOB(); }
     });
   }
@@ -424,6 +425,29 @@ async function saveOnboardingProfile(uid) {
     console.warn("saveOnboardingProfile failed:", err?.message);
     return false;
   }
+}
+
+// guest mode (ผู้ชม/ยังไม่ล็อกอิน): ไม่มีบัญชี Supabase → เก็บข้อมูลเริ่มต้นใน localStorage
+// แล้วเข้าแอปไปดูการทำงานคร่าวๆ ได้เลย (feature ที่ต้องใช้ข้อมูลเพิ่มค่อยถามทีหลัง)
+function finishGuestOnboarding() {
+  const guestProfile = {
+    first_name: OB.data.name,
+    education_level: OB.data.grade,
+    school_name: OB.data.school,
+    gpa: OB.data.gpax,
+    interests: OB.data.interests,
+    track: OB.data.track,
+    onboarded: true,
+    guest: true,
+  };
+  try { localStorage.setItem("nextstep_guest", JSON.stringify(guestProfile)); } catch {}
+  // ตั้ง state ให้ dashboard/profile ดึงข้อมูล guest มาแสดงได้ (ไม่มี state.user)
+  if (typeof state !== "undefined") {
+    state.guest = true;
+    state.profile = guestProfile;           // dashboard/sidebar อ่านจาก state.profile
+    state.flow.track = OB.data.track || null;
+  }
+  obComplete(OB.data.name);
 }
 
 // profile mode (Google/ยังไม่ตอบ): user login อยู่แล้ว → บันทึกแล้วจบ
