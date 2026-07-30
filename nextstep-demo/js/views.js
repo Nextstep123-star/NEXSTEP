@@ -589,7 +589,7 @@ async function viewProfileFull() {
     <!-- Editable fields — pre-filled from users_profile (onboarding data) -->
     <div class="space-y-4 mb-6">
       ${pf("ชื่อเล่น", "profile-name", "text", profile.first_name || "", "เช่น น้องเน็กซ์", "person")}
-      ${pf("ระดับชั้น", "profile-grade", "select", profile.education_level || "", "", "school", ["ม.3","ม.4","ม.5","ม.6"])}
+      ${pf("ระดับชั้น", "profile-grade", "select", profile.education_level || "", "", "school", ["ม.1","ม.2","ม.3","ม.4","ม.5","ม.6","ปวช.1","ปวช.2","ปวช.3","ปวส.1","ปวส.2"])}
       ${pf("โรงเรียน", "profile-school", "text", profile.school_name || "", "ชื่อโรงเรียน", "search")}
       ${pf("GPAX ล่าสุด", "profile-gpax", "number", profile.gpa != null ? profile.gpa : "", "เช่น 3.50", "chart")}
     </div>
@@ -609,7 +609,9 @@ async function viewProfileFull() {
 function pf(label, id, type, value, placeholder, iconName, options) {
   const iconEl = sl(iconName, {size:18, color:"#6b7a08"});
   if (type === "select") {
-    const opts = (options||[]).map(o =>
+    let list = (options || []).slice();
+    if (value && !list.includes(value)) list = [value, ...list]; // คงค่าที่บันทึกไว้ (เช่น ปวช./free text)
+    const opts = list.map(o =>
       `<option value="${esc(o)}" ${o===value?"selected":""}>${esc(o)}</option>`
     ).join("");
     return `<div class="pf-field">

@@ -11,8 +11,10 @@ const OB = {
   mode: "full",   // "full" = สมัครอีเมล (step 1-6) | "profile" = Google/ยังไม่ตอบ (step 1-5)
   data: {
     name: "",
-    grade: "",       // ม.3–ม.6
-    track: "",       // sci_math | arts | vocational
+    line: "",        // junior | sci_math | arts | vocational | other (ถามก่อน)
+    grade: "",       // ม.1–ม.6 / ปวช.–ปวส. / free text (ถามหลัง ขึ้นกับ line)
+    major: "",       // เฉพาะสายอาชีพ — สาขา/เอก
+    track: "",       // sci_math | arts | vocational (map จาก line เพื่อกรองหลักสูตร)
     school: "",
     gpax: null,      // optional
     interests: [],   // faculty ids (strings)
@@ -20,8 +22,23 @@ const OB = {
     password: "",
   },
 };
+
+// สายการเรียน (ถามก่อน) — icon จาก icons.js
+const OB_LINES = [
+  { key: "junior",     label: "มัธยมต้น (สายสามัญ)",   icon: "book" },
+  { key: "sci_math",   label: "ม.ปลาย สายวิทย์–คณิต",  icon: "flask" },
+  { key: "arts",       label: "ม.ปลาย สายศิลป์",        icon: "palette" },
+  { key: "vocational", label: "สายอาชีพ (ปวช./ปวส.)",  icon: "wrench" },
+  { key: "other",      label: "อื่นๆ",                  icon: "route" },
+];
+const OB_VOC_YEARS = ["ปวช.1", "ปวช.2", "ปวช.3", "ปวส.1", "ปวส.2"];
+
+// education_level ที่จะบันทึก (รวมเอกถ้าเป็นสายอาชีพ)
+function obEducationLevel() {
+  return OB.data.major ? `${OB.data.grade} · ${OB.data.major}`.trim() : OB.data.grade;
+}
 // จำนวนขั้นตามโหมด: profile ข้าม step 6 (อีเมล/รหัส เพราะมีบัญชีแล้ว)
-function obTotal() { return OB.mode === "profile" ? 5 : 6; }
+function obTotal() { return (OB.mode === "profile" || OB.mode === "guest") ? 5 : 6; }
 
 // ---- helpers ----
 const obEsc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -75,37 +92,74 @@ function obStep1() {
     </div>`;
 }
 
+// ขั้น 2 — สายการเรียน (ถามก่อน)
 function obStep2() {
-  const grades = ["ม.3", "ม.4", "ม.5", "ม.6"];
   return `
     ${obHeader()}
     <div id="ob-card">
-      <p class="ob-q">ตอนนี้ ${obEsc(OB.data.name)} อยู่ชั้นไหน?</p>
-      <div class="grid grid-cols-2 gap-3 mt-2">
-        ${grades.map((g, i) => `
-          <button class="ob-choice ${OB.data.grade === g ? "selected" : ""}" data-grade="${g}" style="animation-delay:${i * 60}ms">
-            ${g}
+      <p class="ob-q">ตอนนี้ ${obEsc(OB.data.name)} เรียนสายไหน?</p>
+      <div class="flex flex-col gap-3 mt-2">
+        ${OB_LINES.map((l, i) => `
+          <button class="ob-choice text-left flex items-center gap-3 ${OB.data.line === l.key ? "selected" : ""}" data-line="${l.key}" style="animation-delay:${i * 60}ms">
+            <span class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">${sl(l.icon, { size: 20, color: "#c2d90f" })}</span>
+            <span class="font-display font-bold text-[17px]">${l.label}</span>
           </button>`).join("")}
       </div>
     </div>`;
 }
 
+// ขั้น 3 — ระดับชั้น (ขึ้นกับสายที่เลือกในขั้น 2)
 function obStep3() {
-  const tracks = [
-    { key: "sci_math", label: "วิทย์–คณิต", icon: "flask" },
-    { key: "arts",     label: "ศิลป์",       icon: "palette" },
-    { key: "vocational", label: "อาชีวะ",   icon: "wrench" },
-  ];
+  const line = OB.data.line;
+
+  // สายอาชีพ → ถามสาขา/เอก + ชั้น ปวช./ปวส.
+  if (line === "vocational") {
+    return `
+      ${obHeader()}
+      <div id="ob-card">
+        <p class="ob-q">เรียนสายอาชีพ สาขาอะไร?</p>
+        <div class="space-y-3 mt-2">
+          <div>
+            <label class="ob-label">สาขาวิชา / เอก</label>
+            <input id="ob-major" type="text" maxlength="60" value="${obEsc(OB.data.major)}"
+              placeholder="เช่น ช่างยนต์, การบัญชี, คอมพิวเตอร์ธุรกิจ" class="ob-input" />
+          </div>
+          <div>
+            <label class="ob-label">ระดับชั้น</label>
+            <div class="grid grid-cols-3 gap-2">
+              ${OB_VOC_YEARS.map((y) => `
+                <button type="button" class="ob-choice ${OB.data.grade === y ? "selected" : ""}" data-grade="${y}" style="min-height:48px;font-size:15px">${y}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+        <button id="ob-next" class="ob-btn-primary mt-5">ถัดไป ${obIcon("arrow_forward")}</button>
+      </div>`;
+  }
+
+  // อื่นๆ → ระบุเอง
+  if (line === "other") {
+    return `
+      ${obHeader()}
+      <div id="ob-card">
+        <p class="ob-q">ตอนนี้เรียน/อยู่ระดับไหน?</p>
+        <div class="mt-2">
+          <label class="ob-label">ระบุระดับชั้น / สถานะ</label>
+          <input id="ob-grade-other" type="text" maxlength="40" value="${obEsc(OB.data.grade)}"
+            placeholder="เช่น กศน., เด็กซิ่ว, ป.ตรี ปี 1" class="ob-input" />
+        </div>
+        <button id="ob-next" class="ob-btn-primary mt-5">ถัดไป ${obIcon("arrow_forward")}</button>
+      </div>`;
+  }
+
+  // สายสามัญ → ม.ต้น: ม.1-3 · ม.ปลาย (วิทย์-คณิต/ศิลป์): ม.4-6
+  const grades = line === "junior" ? ["ม.1", "ม.2", "ม.3"] : ["ม.4", "ม.5", "ม.6"];
   return `
     ${obHeader()}
     <div id="ob-card">
-      <p class="ob-q">เรียนสายอะไร?</p>
-      <div class="flex flex-col gap-3 mt-2">
-        ${tracks.map((t, i) => `
-          <button class="ob-choice text-left flex items-center gap-3 ${OB.data.track === t.key ? "selected" : ""}" data-track="${t.key}" style="animation-delay:${i * 60}ms">
-            <span class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">${sl(t.icon, { size: 20, color: "#c2d90f" })}</span>
-            <span class="font-display font-bold text-[17px]">${t.label}</span>
-          </button>`).join("")}
+      <p class="ob-q">อยู่ชั้นไหน?</p>
+      <div class="grid grid-cols-3 gap-3 mt-2">
+        ${grades.map((g, i) => `
+          <button class="ob-choice ${OB.data.grade === g ? "selected" : ""}" data-grade="${g}" style="animation-delay:${i * 60}ms">${g}</button>`).join("")}
       </div>
     </div>`;
 }
@@ -258,11 +312,15 @@ function wireOB() {
     nameInput.focus();
   }
 
+  // ขั้น 2 — เลือกสายการเรียน (auto-advance)
   if (OB.step === 2) {
-    document.querySelectorAll("[data-grade]").forEach((b, _i) => {
+    document.querySelectorAll("[data-line]").forEach((b) => {
       b.addEventListener("click", () => {
-        OB.data.grade = b.dataset.grade;
-        // pulse then auto-next
+        const line = b.dataset.line;
+        if (OB.data.line !== line) { OB.data.grade = ""; OB.data.major = ""; } // เปลี่ยนสาย → เคลียร์ชั้น/เอกเดิม
+        OB.data.line = line;
+        // map เป็น track เพื่อกรองหลักสูตร (ม.ต้น/อื่นๆ = ยังไม่ระบุ)
+        OB.data.track = (line === "sci_math" || line === "arts" || line === "vocational") ? line : "";
         const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
         b.classList.add("selected");
         if (!reduce) {
@@ -273,18 +331,43 @@ function wireOB() {
     });
   }
 
+  // ขั้น 3 — ระดับชั้น (ขึ้นกับสาย)
   if (OB.step === 3) {
-    document.querySelectorAll("[data-track]").forEach((b) => {
-      b.addEventListener("click", () => {
-        OB.data.track = b.dataset.track;
+    const line = OB.data.line;
+
+    if (line === "vocational") {
+      // เลือกชั้น ปวช./ปวส. (ไม่ auto-advance เพราะต้องกรอกเอกด้วย)
+      document.querySelectorAll("[data-grade]").forEach((b) => b.addEventListener("click", () => {
+        document.querySelectorAll("[data-grade]").forEach((x) => x.classList.remove("selected"));
+        b.classList.add("selected");
+        OB.data.grade = b.dataset.grade;
+      }));
+      document.getElementById("ob-next").addEventListener("click", () => {
+        const major = document.getElementById("ob-major").value.trim();
+        if (!major) { obToast("ใส่สาขาวิชา/เอก หน่อยนะ"); return; }
+        if (!OB.data.grade) { obToast("เลือกระดับชั้น (ปวช./ปวส.) ด้วยนะ"); return; }
+        OB.data.major = major;
+        OB.dir = 1; OB.step++; renderOB();
+      });
+    } else if (line === "other") {
+      document.getElementById("ob-next").addEventListener("click", () => {
+        const g = document.getElementById("ob-grade-other").value.trim();
+        if (!g) { obToast("ระบุระดับชั้น/สถานะหน่อยนะ"); return; }
+        OB.data.grade = g;
+        OB.dir = 1; OB.step++; renderOB();
+      });
+    } else {
+      // สายสามัญ (ม.ต้น/ม.ปลาย) — เลือกชั้นแล้ว auto-advance
+      document.querySelectorAll("[data-grade]").forEach((b) => b.addEventListener("click", () => {
+        OB.data.grade = b.dataset.grade;
         const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
         b.classList.add("selected");
         if (!reduce) {
           b.animate([{ transform: "scale(1)" }, { transform: "scale(1.04)" }, { transform: "scale(1)" }],
             { duration: 300, easing: "ease" }).onfinish = () => { OB.dir = 1; OB.step++; renderOB(); };
         } else { OB.dir = 1; OB.step++; renderOB(); }
-      });
-    });
+      }));
+    }
   }
 
   if (OB.step === 4) {
@@ -406,7 +489,7 @@ async function saveOnboardingProfile(uid) {
   try {
     const { error: e1 } = await db.from("users_profile").update({
       first_name: OB.data.name,
-      education_level: OB.data.grade,
+      education_level: obEducationLevel(),
       school_name: OB.data.school,
       gpa: OB.data.gpax,
       onboarded: true,
@@ -432,7 +515,7 @@ async function saveOnboardingProfile(uid) {
 function finishGuestOnboarding() {
   const guestProfile = {
     first_name: OB.data.name,
-    education_level: OB.data.grade,
+    education_level: obEducationLevel(),
     school_name: OB.data.school,
     gpa: OB.data.gpax,
     interests: OB.data.interests,
@@ -469,6 +552,6 @@ async function finishProfileOnboarding() {
 function startOnboarding(mode = "full") {
   OB.step = 1; OB.dir = 1; OB.mode = mode;
   const prefillName = mode === "profile" && typeof displayName === "function" ? displayName() : "";
-  OB.data = { name: prefillName, grade: "", track: "", school: "", gpax: null, interests: [], email: "", password: "" };
+  OB.data = { name: prefillName, line: "", grade: "", major: "", track: "", school: "", gpax: null, interests: [], email: "", password: "" };
   renderOB();
 }
