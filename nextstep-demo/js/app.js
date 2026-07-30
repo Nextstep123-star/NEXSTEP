@@ -189,8 +189,8 @@ function enterAdminMode() {
     if (!getPaths().length) {
       // programId เป็น id จริง (มี roadmap/rounds ใน DB) เพื่อให้ demo โชว์เส้นทางจริง
       const demo = [
-        { id: "p_demo_med", name: "หมอในฝัน", programName: "แพทยศาสตรบัณฑิต", uni: "มหาวิทยาลัยธรรมศาสตร์", programId: "10050211100101A", track: "sci_math", createdAt: Date.now() },
-        { id: "p_demo_eng", name: "วิศวะ คอมพิวเตอร์", programName: "วิศวกรรมคอมพิวเตอร์", uni: "มหาวิทยาลัยศรีนครินทรวิโรฒ", programId: "10090209300501A", track: "sci_math", createdAt: Date.now() - 86400000 },
+        { id: "p_demo_med", name: "หมอในฝัน", programName: "แพทยศาสตรบัณฑิต", uni: "มหาวิทยาลัยธรรมศาสตร์", programId: "10050211100101A", track: "sci_math", steps: 4, createdAt: Date.now() },
+        { id: "p_demo_eng", name: "วิศวะ คอมพิวเตอร์", programName: "วิศวกรรมคอมพิวเตอร์", uni: "มหาวิทยาลัยศรีนครินทรวิโรฒ", programId: "10090209300501A", track: "sci_math", steps: 4, createdAt: Date.now() - 86400000 },
       ];
       savePaths(demo);
       setMain(demo[0].id);
@@ -369,18 +369,23 @@ function viewDashboard() {
   const gpax = (state.profile?.gpa != null) ? Number(state.profile.gpa).toFixed(2) : "—";
   const gradeSub = state.profile?.education_level ? esc(state.profile.education_level) : "";
 
+  // ความคืบหน้าจริงของเส้นทางหลัก (ถ้ารู้จำนวนขั้นแล้ว คำนวณ sync ได้เลย)
+  const mpDone = mainPath ? getProgress(mainPath.id).length : 0;
+  const mpTotal = mainPath?.steps || 0;
+  const mpPct = mpTotal ? Math.round((mpDone / mpTotal) * 100) : null;
+
   // stat cards
   const stats = [
-    { label: "GPA ปัจจุบัน", value: gpax, sub: gradeSub, subCls: "text-on-surface-variant" },
-    { label: "ความคืบหน้า", value: "—", sub: mainPath ? esc(mainPath.name) : "ยังไม่มีเส้นทาง", subCls: "text-primary" },
-    { label: "กิจกรรมใกล้ถึง", value: "—", sub: "", subCls: "" },
-    { label: "วันสอบถัดไป", value: "—", sub: "", subCls: "" },
+    { id: "stat-gpa", label: "GPA ปัจจุบัน", value: gpax, sub: gradeSub, subCls: "text-on-surface-variant" },
+    { id: "stat-progress", label: "ความคืบหน้า", value: mpPct != null ? mpPct + "%" : "—", sub: mainPath ? esc(mainPath.name) : "ยังไม่มีเส้นทาง", subCls: "text-primary" },
+    { id: "stat-event", label: "กิจกรรมใกล้ถึง", value: "—", sub: "", subCls: "text-on-surface-variant" },
+    { id: "stat-exam", label: "วันสอบถัดไป", value: "—", sub: "", subCls: "text-error" },
   ];
   const statCards = stats.map((s) => `
     <div class="db-card p-5 flex flex-col gap-1 min-w-0">
       <span class="text-[12px] text-on-surface-variant font-medium">${s.label}</span>
-      <span class="font-mono font-bold text-[28px] text-on-surface leading-none">${s.value}</span>
-      ${s.sub ? `<span class="text-[12px] ${s.subCls || "text-on-surface-variant"}">${s.sub}</span>` : ""}
+      <span id="${s.id}" class="font-mono font-bold text-[28px] text-on-surface leading-none">${s.value}</span>
+      <span id="${s.id}-sub" class="text-[12px] ${s.subCls || "text-on-surface-variant"} truncate ${s.sub ? "" : "hidden"}">${s.sub || ""}</span>
     </div>`).join("");
 
   // roadmap horizontal progress (main path)
@@ -393,21 +398,21 @@ function viewDashboard() {
           <div class="font-display font-bold text-[16px] text-on-surface truncate">${esc(mainPath.programName || mainPath.name)}</div>
           <div class="text-[12px] text-on-surface-variant truncate">${mainPath.uni ? esc(mainPath.uni) + " · " : ""}TCAS Portfolio</div>
         </div>
-        <span class="shrink-0 text-[13px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-3 py-1">87%</span>
+        <span id="dash-rm-badge" class="shrink-0 text-[13px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-3 py-1">${mpPct != null ? mpPct + "%" : "—"}</span>
       </div>
 
-      <!-- horizontal step nodes -->
-      <div class="relative flex items-center gap-0 mb-5 overflow-x-auto no-scrollbar pb-1">
-        ${dashSteps()}
+      <!-- horizontal step nodes (real, from main path roadmap) -->
+      <div id="dash-rm-steps" class="relative flex items-center gap-0 mb-5 overflow-x-auto no-scrollbar pb-1">
+        <div class="h-16 w-full bg-surface-variant/40 rounded-lg animate-pulse"></div>
       </div>
 
       <!-- progress bar -->
       <div class="flex items-center justify-between mb-1">
         <span class="text-[12px] text-on-surface-variant">ความคืบหน้าโดยรวม</span>
-        <span class="text-[12px] font-mono font-bold text-primary">62%</span>
+        <span id="dash-rm-pct" class="text-[12px] font-mono font-bold text-primary">${mpPct != null ? mpPct + "%" : "0%"}</span>
       </div>
       <div class="h-2.5 rounded-full bg-surface-variant overflow-hidden">
-        <div class="h-full rounded-full bg-primary" style="width:62%;transition:width .6s cubic-bezier(.32,.78,.2,1)"></div>
+        <div id="dash-rm-bar" class="h-full rounded-full bg-primary" style="width:${mpPct != null ? mpPct : 0}%;transition:width .6s cubic-bezier(.32,.78,.2,1)"></div>
       </div>
     </div>` : `
     <div class="db-card p-6 mb-4 flex flex-col items-center text-center gap-3">
@@ -545,53 +550,84 @@ function viewDashboard() {
 
 // Called after dashShell renders — loads live events+news
 // (ถ้า DB ว่าง/ล่ม/โหมด demo → fallback เป็นข้อมูล TCAS70 client dataset)
-async function loadDashboardLiveData() {
-  try {
-    const MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-    const dotCls = {error:"bg-error",tertiary:"bg-tertiary",primary:"bg-primary",secondary:"bg-secondary"};
-    const todayStr = new Date().toISOString().split("T")[0];
+// อัปเดต stat card (value + sub) แบบปลอดภัย
+function setStat(id, value, sub) {
+  const v = document.getElementById(id); if (v) v.textContent = value;
+  const s = document.getElementById(id + "-sub");
+  if (s) { s.textContent = sub || ""; s.classList.toggle("hidden", !sub); }
+}
+const MONTHS_TH_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const fmtDayMonth = (iso) => { const d = new Date(iso); return `${d.getDate()} ${MONTHS_TH_SHORT[d.getMonth()]}`; };
+const isExamEvent = (e) => /สอบ/.test(e.type || "") || /สอบ|A-Level|TGAT|TPAT/i.test(e.title || "");
 
+async function loadDashboardLiveData() {
+  const dotCls = { error: "bg-error", tertiary: "bg-tertiary", primary: "bg-primary", secondary: "bg-secondary" };
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // ---------- events + news + stat cards (กิจกรรม/วันสอบ) ----------
+  try {
     let evs = null, newsItems = null;
     if (!state.admin) {
-      const today = todayStr;
-      const cutoff = new Date(); cutoff.setDate(cutoff.getDate()+60);
       try {
         const r = await Promise.all([
-          db.from("events").select("title,event_date,color").gte("event_date", today).lte("event_date", cutoff.toISOString().split("T")[0]).order("event_date").limit(3),
-          db.from("news").select("title,category,published_at").eq("is_published",true).order("published_at",{ascending:false}).limit(3),
+          db.from("events").select("title,event_date,color,type").gte("event_date", todayStr).order("event_date").limit(12),
+          db.from("news").select("title,category,published_at").eq("is_published", true).order("published_at", { ascending: false }).limit(3),
         ]);
         evs = r[0].data; newsItems = r[1].data;
-      } catch { /* network → fallback ข้างล่าง */ }
+      } catch { /* network → fallback */ }
     }
-    // fallback → TCAS70 (upcoming schedule + ข่าว)
-    if (!evs || !evs.length) {
-      evs = (TCAS70.schedule.filter(e => e.event_date >= todayStr).slice(0, 3));
-      if (!evs.length) evs = TCAS70.schedule.slice(0, 3);
-    }
+    if (!evs || !evs.length) evs = TCAS70.schedule.filter(e => e.event_date >= todayStr);
+    if (!evs.length) evs = TCAS70.schedule.slice();
     if (!newsItems || !newsItems.length) newsItems = TCAS70.news.slice(0, 3);
 
     const evEl = document.getElementById("dash-events");
-    if (evEl) evEl.innerHTML = (evs||[]).length ? (evs||[]).map(e => {
-      const d = new Date(e.event_date); const dot = dotCls[e.color]||"bg-primary";
+    if (evEl) evEl.innerHTML = evs.length ? evs.slice(0, 3).map(e => {
+      const d = new Date(e.event_date); const dot = dotCls[e.color] || "bg-primary";
       return `<div class="flex items-start gap-3">
-        <div class="w-10 shrink-0 text-center"><div class="font-mono font-bold text-[16px] text-on-surface leading-none">${d.getDate()}</div><div class="text-[11px] text-on-surface-variant">${MONTHS_TH[d.getMonth()]}</div></div>
+        <div class="w-10 shrink-0 text-center"><div class="font-mono font-bold text-[16px] text-on-surface leading-none">${d.getDate()}</div><div class="text-[11px] text-on-surface-variant">${MONTHS_TH_SHORT[d.getMonth()]}</div></div>
         <div class="flex-1 min-w-0 border-l-2 border-surface-variant pl-3">
           <div class="font-bold text-[13px] text-on-surface leading-snug">${esc(e.title)}</div>
           <span class="inline-block w-1.5 h-1.5 rounded-full ${dot} mr-1"></span>
         </div>
       </div>`;
-    }).join("") : `<p class="text-[13px] text-on-surface-variant">ไม่มีกิจกรรมใน 60 วันข้างหน้า</p>`;
+    }).join("") : `<p class="text-[13px] text-on-surface-variant">ไม่มีกิจกรรมที่กำลังจะมาถึง</p>`;
 
     const nwEl = document.getElementById("dash-news");
-    if (nwEl) nwEl.innerHTML = (newsItems||[]).length ? (newsItems||[]).map(n => {
+    if (nwEl) nwEl.innerHTML = newsItems.length ? newsItems.map(n => {
       const d = new Date(n.published_at);
       return `<div class="flex gap-2 items-start">
         <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary shrink-0"></span>
         <div><div class="text-[13px] text-on-surface font-medium leading-snug line-clamp-2">${esc(n.title)}</div>
-        <div class="text-[11px] text-on-surface-variant mt-0.5">${d.getDate()} ${MONTHS_TH[d.getMonth()]} ${d.getFullYear()+543} · ${esc(n.category)}</div></div>
+        <div class="text-[11px] text-on-surface-variant mt-0.5">${d.getDate()} ${MONTHS_TH_SHORT[d.getMonth()]} ${d.getFullYear() + 543} · ${esc(n.category)}</div></div>
       </div>`;
     }).join("") : `<p class="text-[13px] text-on-surface-variant">ยังไม่มีข่าวสาร</p>`;
-  } catch { /* ถ้า network ผิดพลาด ข้ามไป */ }
+
+    // stat cards: กิจกรรมใกล้ถึง = อันแรก · วันสอบถัดไป = อันแรกที่เป็นการสอบ
+    const near = evs[0];
+    const nearExam = evs.find(isExamEvent);
+    if (near) setStat("stat-event", fmtDayMonth(near.event_date), near.title);
+    if (nearExam) setStat("stat-exam", fmtDayMonth(nearExam.event_date), nearExam.title);
+    else setStat("stat-exam", "—", "");
+  } catch { /* ข้าม */ }
+
+  // ---------- ความคืบหน้าจริงของเส้นทางหลัก ----------
+  try {
+    const paths = getPaths();
+    const mainPath = paths.find(p => p.id === getMain()) || paths[0];
+    if (mainPath && mainPath.programId) {
+      const roadmap = await fetchRoadmap(mainPath.programId);
+      if (roadmap && roadmap.length) {
+        if (mainPath.steps !== roadmap.length) { mainPath.steps = roadmap.length; savePaths(paths); } // backfill
+        const done = getProgress(mainPath.id).filter(n => roadmap.some(s => s.step_number === n)).length;
+        const pct = Math.round((done / roadmap.length) * 100);
+        setStat("stat-progress", pct + "%", mainPath.name);
+        const badge = document.getElementById("dash-rm-badge"); if (badge) badge.textContent = pct + "%";
+        const pctEl = document.getElementById("dash-rm-pct"); if (pctEl) pctEl.textContent = pct + "%";
+        const bar = document.getElementById("dash-rm-bar"); if (bar) bar.style.width = pct + "%";
+        const stepsEl = document.getElementById("dash-rm-steps"); if (stepsEl) stepsEl.innerHTML = dashRealSteps(roadmap, mainPath.id);
+      }
+    }
+  } catch { /* ข้าม */ }
 }
 
 /* horizontal step nodes for dashboard roadmap */
@@ -624,6 +660,37 @@ function dashSteps() {
             <div class="font-bold text-[11px] text-on-surface leading-tight">${labelLines[0]}</div>
             <div class="font-bold text-[11px] ${s.current ? "text-primary" : "text-on-surface"} leading-tight">${labelLines[1] || ""}</div>
             <div class="text-[10px] text-on-surface-variant">${s.sub}</div>
+          </div>
+        </div>
+        ${line}
+      </div>`;
+  }).join("");
+}
+
+/* horizontal step nodes จาก roadmap จริงของเส้นทางหลัก (done/current ตาม progress) */
+function dashRealSteps(roadmap, pathId) {
+  const completed = getProgress(pathId);
+  const cur = currentStepNumber(roadmap, completed);
+  return roadmap.map((s, i) => {
+    const done = completed.includes(s.step_number);
+    const current = s.step_number === cur;
+    const dotCls = done
+      ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a]"
+      : current
+        ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a] ring-4 ring-primary/30"
+        : "bg-surface-container border-surface-variant text-on-surface-variant";
+    const line = i < roadmap.length - 1
+      ? `<div class="flex-1 h-0.5 mx-1 ${done ? "bg-primary" : "bg-surface-variant"}" style="min-width:20px"></div>`
+      : "";
+    return `
+      <div class="flex items-center flex-1 min-w-0">
+        <div class="flex flex-col items-center gap-1 shrink-0">
+          <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center font-mono font-bold text-[13px] ${dotCls}">
+            ${done ? icon("check", { fill: true }) : s.step_number}
+          </div>
+          <div class="text-center" style="width:74px">
+            <div class="font-bold text-[10px] ${current ? "text-primary" : "text-on-surface"} leading-tight line-clamp-2">${esc(s.title)}</div>
+            ${s.target_period ? `<div class="text-[9px] text-on-surface-variant mt-0.5">${esc(s.target_period)}</div>` : ""}
           </div>
         </div>
         ${line}
@@ -831,7 +898,7 @@ async function viewCooking() {
     // Persist path (localStorage; Phase 3 → user_paths). Skip when re-opening an existing path.
     if (!state.flow.reopen) {
       const paths = getPaths();
-      const rec = { id: uid(), name: state.flow.name || prog.name, programId: prog.id, programName: prog.name, uni: prog.uni, track: state.flow.track, createdAt: Date.now() };
+      const rec = { id: uid(), name: state.flow.name || prog.name, programId: prog.id, programName: prog.name, uni: prog.uni, track: state.flow.track, steps: roadmap.length, createdAt: Date.now() };
       paths.unshift(rec);
       savePaths(paths);
       if (!getMain()) setMain(rec.id);
