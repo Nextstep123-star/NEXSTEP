@@ -645,25 +645,45 @@ async function viewProfileFull() {
 
   const name = profile.first_name || state.user?.user_metadata?.first_name || "";
   const email = state.user.email || "";
-  const avatarUrl = state._avatarUrl || null;
+  const decor = getDecor();
+  const avatarUrl = decor.avatar || state._avatarUrl || null;
+  const bannerUrl = decor.banner || null;
   const initial = (name || email).charAt(0).toUpperCase() || "?";
 
   const profileBody = document.getElementById("profile-body");
   if (!profileBody) return; // view เปลี่ยนไปแล้วระหว่าง await — กัน null crash
   profileBody.innerHTML = `
-    <!-- Avatar -->
-    <div class="flex flex-col items-center mb-8">
-      <div class="relative mb-3">
-        <div class="w-24 h-24 rounded-full bg-primary-container shadow-[0_4px_0_#6b7a08] overflow-hidden flex items-center justify-center">
-          ${avatarUrl
-            ? `<img src="${esc(avatarUrl)}" alt="avatar" class="w-full h-full object-cover"/>`
-            : `<span class="font-display font-bold text-[32px] text-on-primary">${esc(initial)}</span>`}
+    <!-- Banner (ภาพปก) + Avatar ทับมุมล่าง -->
+    <div class="relative mb-4">
+      <div class="h-32 sm:h-40 rounded-2xl overflow-hidden relative border border-surface-variant">
+        ${bannerUrl
+          ? `<img src="${esc(bannerUrl)}" alt="banner" class="w-full h-full object-cover"/>`
+          : `<div class="w-full h-full" style="background:linear-gradient(135deg,#2b6c00,#96a80a 55%,#c2d90f)"></div>
+             <div class="absolute right-3 bottom-1 opacity-30">${typeof nexMascot === "function" ? nexMascot("mascot w-14 h-14", { pose: "happy" }) : ""}</div>`}
+        <div class="absolute top-2 right-2 flex gap-1.5">
+          ${bannerUrl ? `<button id="btn-banner-clear" class="bg-black/45 backdrop-blur text-white rounded-lg px-2 py-1 text-[12px] font-bold flex items-center gap-1 hover:bg-black/60 transition-colors">✕ ลบ</button>` : ""}
+          <label for="banner-input" class="bg-black/45 backdrop-blur text-white rounded-lg px-2.5 py-1 text-[12px] font-bold flex items-center gap-1 cursor-pointer hover:bg-black/60 transition-colors">
+            ${sl("camera",{size:13,color:"#ffffff"})} ${bannerUrl ? "เปลี่ยน" : "เพิ่มแบนเนอร์"}
+          </label>
         </div>
-        <label for="avatar-input" class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-surface-container-high border-2 border-surface-variant flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
-          ${sl("camera",{size:14,color:"#9aa090"})}
-        </label>
-        <input id="avatar-input" type="file" accept="image/*" class="hidden"/>
+        <input id="banner-input" type="file" accept="image/*" class="hidden"/>
       </div>
+      <!-- Avatar overlapping -->
+      <div class="absolute left-1/2 -translate-x-1/2" style="bottom:-40px">
+        <div class="relative">
+          <div class="w-24 h-24 rounded-full bg-primary-container border-4 border-surface shadow-[0_4px_0_#6b7a08] overflow-hidden flex items-center justify-center">
+            ${avatarUrl
+              ? `<img src="${esc(avatarUrl)}" alt="avatar" class="w-full h-full object-cover"/>`
+              : `<span class="font-display font-bold text-[32px] text-on-primary">${esc(initial)}</span>`}
+          </div>
+          <label for="avatar-input" class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-surface-container-high border-2 border-surface flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
+            ${sl("camera",{size:14,color:"#c2d90f"})}
+          </label>
+          <input id="avatar-input" type="file" accept="image/*" class="hidden"/>
+        </div>
+      </div>
+    </div>
+    <div class="text-center mb-6" style="margin-top:48px">
       <h2 class="font-display font-bold text-[20px] text-on-surface">${esc(name || "ไม่ระบุชื่อ")}</h2>
       <p class="text-[13px] text-on-surface-variant">${esc(email)}</p>
     </div>
@@ -719,28 +739,27 @@ function pf(label, id, type, value, placeholder, iconName, options) {
 }
 
 function wireProfile() {
-  // Avatar upload
+  // Avatar — ย่อรูปแล้วเก็บใน localStorage (ใช้ได้ทุกโหมด + ค้างหลังรีเฟรช)
   document.getElementById("avatar-input")?.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !state.user) return;
-    if (state.admin) {
-      // โหมด Demo — พรีวิวรูปจากเครื่องเลย ไม่อัปโหลดขึ้น Storage
-      state._avatarUrl = URL.createObjectURL(file);
-      toast("อัปเดตรูปโปรไฟล์แล้ว (Demo)");
-      go("profile");
-      return;
-    }
-    const ext = file.name.split(".").pop();
+    if (!file) return;
     try {
-      const { error } = await db.storage.from("avatars").upload(
-        `${state.user.id}/avatar.${ext}`, file, { upsert: true }
-      );
-      if (error) throw error;
-      const { data } = db.storage.from("avatars").getPublicUrl(`${state.user.id}/avatar.${ext}`);
-      state._avatarUrl = data.publicUrl + "?t=" + Date.now();
-      toast("อัปเดตรูปโปรไฟล์แล้ว");
-      go("profile");
-    } catch { toast("อัปโหลดไม่สำเร็จ — อาจต้องสร้าง bucket 'avatars' ใน Supabase Storage"); }
+      const dataUrl = await readCompressedImage(file, 400, 400);
+      if (setDecor({ avatar: dataUrl })) { toast("อัปเดตรูปโปรไฟล์แล้ว"); go("profile"); }
+    } catch { toast("อ่านรูปไม่สำเร็จ ลองรูปอื่นนะ"); }
+  });
+
+  // Banner (ภาพปก) — ย่อรูปกว้างกว่า
+  document.getElementById("banner-input")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await readCompressedImage(file, 1200, 480);
+      if (setDecor({ banner: dataUrl })) { toast("อัปเดตแบนเนอร์แล้ว"); go("profile"); }
+    } catch { toast("อ่านรูปไม่สำเร็จ ลองรูปอื่นนะ"); }
+  });
+  document.getElementById("btn-banner-clear")?.addEventListener("click", () => {
+    setDecor({ banner: null }); toast("ลบแบนเนอร์แล้ว"); go("profile");
   });
 
   // Save — upsert to users_profile AND update auth metadata (keeps in sync)

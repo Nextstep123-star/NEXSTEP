@@ -51,6 +51,40 @@ const savePaths = (p) => localStorage.setItem(LS_PATHS, JSON.stringify(p));
 const getMain = () => localStorage.getItem(LS_MAIN);
 const setMain = (id) => localStorage.setItem(LS_MAIN, id);
 
+/* ---------- Profile decoration (avatar + banner) — เก็บ data URL ย่อใน localStorage ต่อผู้ใช้ ---------- */
+const LS_DECOR = "nextstep_decor";
+const decorKey = () => state.user?.id || (state.guest ? "guest" : "anon");
+function getDecor() { try { return (JSON.parse(localStorage.getItem(LS_DECOR)) || {})[decorKey()] || {}; } catch { return {}; } }
+function setDecor(patch) {
+  let all; try { all = JSON.parse(localStorage.getItem(LS_DECOR)) || {}; } catch { all = {}; }
+  all[decorKey()] = { ...(all[decorKey()] || {}), ...patch };
+  try { localStorage.setItem(LS_DECOR, JSON.stringify(all)); return true; }
+  catch { toast("รูปใหญ่เกินไป ลองรูปที่เล็กลงนะ"); return false; }
+}
+// อ่านไฟล์รูป → ย่อ/บีบอัดด้วย canvas → คืน data URL (jpeg) เพื่อเก็บได้เล็กลง
+function readCompressedImage(file, maxW, maxH, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) { reject(new Error("not image")); return; }
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width, maxH / img.height);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        try { resolve(canvas.toDataURL("image/jpeg", quality)); } catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ---------- Roadmap step progress ---------- */
 const getAllProgress = () => { try { return JSON.parse(localStorage.getItem(LS_PROGRESS)) || {}; } catch { return {}; } };
 const getProgress = (pathId) => { const a = getAllProgress()[pathId]; return Array.isArray(a) ? a : []; };
