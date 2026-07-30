@@ -81,7 +81,9 @@ const ADMIN_PASSWORD = "nexstep-demo";
 const LS_ADMIN = "nextstep_admin";
 
 function isAdminCreds(email, password) {
-  return email.trim().toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD;
+  // ยืดหยุ่น: ตัดช่องว่าง + ไม่สนตัวพิมพ์ (กันคีย์บอร์ดมือถือ auto-capitalize)
+  return (email || "").trim().toLowerCase() === ADMIN_EMAIL
+    && (password || "").trim().toLowerCase() === ADMIN_PASSWORD;
 }
 
 // สร้าง session ปลอมของ admin + seed ข้อมูลตัวอย่างครบทุกอย่าง
