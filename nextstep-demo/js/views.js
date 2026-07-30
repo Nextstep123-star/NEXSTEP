@@ -495,24 +495,7 @@ async function loadRoadmapIntoContainer(path) {
   if (!container) return;
   try {
     const [rounds, roadmap] = await Promise.all([fetchRounds(path.programId), fetchRoadmap(path.programId)]);
-    const total = roadmap.length || 1;
-
-    const nodes = roadmap.map((s, i) => {
-      const current = i === 0;
-      return `
-        <div class="flex items-start gap-4 mb-5 relative">
-          <div class="w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 z-10 ${current ? "bg-primary border-primary shadow-[0_4px_0_#96a80a] pulse-animation" : "bg-surface-container border-surface-variant"}">
-            ${current ? sl("route",{size:18,color:"#16180f"}) : `<span class="font-mono font-bold text-[13px] text-on-surface-variant">${s.step_number}</span>`}
-          </div>
-          <div class="flex-1 db-card p-4 ${current ? "border-primary/50" : ""}">
-            <div class="flex items-center justify-between gap-2">
-              <h3 class="font-display font-bold text-[15px] ${current ? "text-primary" : "text-on-surface"}">${esc(s.title)}</h3>
-              ${s.target_period ? `<span class="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-secondary/20 text-secondary">${esc(s.target_period)}</span>` : ""}
-            </div>
-            ${s.description ? `<p class="text-[13px] text-on-surface-variant mt-1 leading-relaxed">${esc(s.description)}</p>` : ""}
-          </div>
-        </div>`;
-    }).join("");
+    const p = roadmapProgress(roadmap, path.id);
 
     const roundPills = rounds.map((r, i) => `
       <button data-round="${i}" class="shrink-0 db-card px-4 py-3 flex items-center gap-2 hover:border-primary/40 transition-colors">
@@ -531,25 +514,30 @@ async function loadRoadmapIntoContainer(path) {
             <p class="text-[12px] text-on-surface-variant">${esc(path.programName||"")}${path.uni?" · "+esc(path.uni):""}</p>
           </div>
           <div class="shrink-0 flex items-center gap-2">
-            <span class="text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">ขั้น 1/${total}</span>
+            <span data-rm-badge class="text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">เสร็จ ${p.done}/${p.total}</span>
             ${getMain() !== path.id ? `<button id="rm-main" class="p-2 rounded-lg border border-surface-variant text-on-surface-variant hover:border-primary hover:text-primary transition-colors" title="ตั้งเป็นเส้นทางหลัก">${sl("heart",{size:16})}</button>` : ""}
             <button id="rm-path" class="flex items-center gap-1 p-2 rounded-lg border border-surface-variant text-on-surface-variant hover:border-error hover:text-error transition-colors" title="ลบเส้นทาง">${icon("delete",{cls:"text-[18px]"})}</button>
           </div>
         </div>
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[12px] text-on-surface-variant">ความคืบหน้า</span>
+          <span data-rm-pct class="text-[12px] font-mono font-bold text-primary">${p.pct}%</span>
+        </div>
         <div class="h-2 rounded-full bg-surface-variant overflow-hidden">
-          <div class="h-full rounded-full bg-primary" style="width:${Math.round((1/total)*100)}%"></div>
+          <div data-rm-bar class="h-full rounded-full bg-primary" style="width:${p.pct}%;transition:width .5s cubic-bezier(.32,.78,.2,1)"></div>
         </div>
       </div>
       <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร</h2>
       <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4">${roundPills||"<span class='text-on-surface-variant text-[13px]'>ยังไม่มีข้อมูลรอบรับสมัคร</span>"}</div>
-      <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว</h2>
+      <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว <span class="font-normal">· แตะเพื่อทำเครื่องหมายเสร็จ</span></h2>
       <div class="relative">
-        <div class="absolute left-[19px] top-4 bottom-4 w-0.5 bg-surface-variant"></div>
-        ${nodes||"<p class='text-on-surface-variant'>ยังไม่มีข้อมูลเส้นทาง</p>"}
+        <div class="absolute left-[23px] top-4 bottom-4 w-0.5 bg-surface-variant"></div>
+        <div id="rm-timeline">${roadmap.length ? roadmapTimelineHTML(roadmap, path.id) : "<p class='text-on-surface-variant'>ยังไม่มีข้อมูลเส้นทาง</p>"}</div>
       </div>
       ${detailPanelSkeleton()}`;
 
     container.querySelectorAll("[data-round]").forEach(b => b.addEventListener("click", () => openRound(rounds[+b.dataset.round])));
+    wireRoadmapTimeline(path.id, roadmap);
 
     // ตั้งเป็นเส้นทางหลัก
     container.querySelector("#rm-main")?.addEventListener("click", () => setMainPath(path.id));

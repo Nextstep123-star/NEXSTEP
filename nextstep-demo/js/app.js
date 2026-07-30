@@ -45,10 +45,86 @@ const state = {
 /* ---------- localStorage (Phase 3 → DB) ---------- */
 const LS_PATHS = "nextstep_paths";
 const LS_MAIN = "nextstep_main";
+const LS_PROGRESS = "nextstep_progress"; // { pathId: [stepNumbers...] } — ขั้นที่ทำเสร็จ
 const getPaths = () => { try { return JSON.parse(localStorage.getItem(LS_PATHS)) || []; } catch { return []; } };
 const savePaths = (p) => localStorage.setItem(LS_PATHS, JSON.stringify(p));
 const getMain = () => localStorage.getItem(LS_MAIN);
 const setMain = (id) => localStorage.setItem(LS_MAIN, id);
+
+/* ---------- Roadmap step progress ---------- */
+const getAllProgress = () => { try { return JSON.parse(localStorage.getItem(LS_PROGRESS)) || {}; } catch { return {}; } };
+const getProgress = (pathId) => { const a = getAllProgress()[pathId]; return Array.isArray(a) ? a : []; };
+function toggleStep(pathId, step) {
+  if (!pathId) return [];
+  const all = getAllProgress();
+  const set = new Set(all[pathId] || []);
+  set.has(step) ? set.delete(step) : set.add(step);
+  all[pathId] = [...set].sort((a, b) => a - b);
+  try { localStorage.setItem(LS_PROGRESS, JSON.stringify(all)); } catch {}
+  return all[pathId];
+}
+// ขั้น "ปัจจุบัน" = ขั้นแรกที่ยังไม่เสร็จ
+function currentStepNumber(roadmap, completed) {
+  for (const s of roadmap) if (!completed.includes(s.step_number)) return s.step_number;
+  return null; // เสร็จหมดแล้ว
+}
+function roadmapProgress(roadmap, pathId) {
+  const total = roadmap.length || 1;
+  const completed = getProgress(pathId);
+  const done = roadmap.filter((s) => completed.includes(s.step_number)).length;
+  return { done, total, pct: Math.round((done / total) * 100) };
+}
+
+/* สร้าง HTML ไทม์ไลน์ที่กดทำเครื่องหมายเสร็จได้ (ใช้ทั้ง viewRoadmap + My Roadmap) */
+function roadmapTimelineHTML(roadmap, pathId) {
+  const completed = getProgress(pathId);
+  const curStep = currentStepNumber(roadmap, completed);
+  return roadmap.map((s) => {
+    const done = completed.includes(s.step_number);
+    const current = s.step_number === curStep;
+    const dotBg = done ? "bg-primary border-primary" : current ? "bg-primary-container border-[#96a80a]" : "bg-surface-container-high border-surface-variant";
+    const dotShadow = (done || current) ? "#96a80a" : "#0d0f08";
+    const cardBorder = done ? "border-primary/60" : current ? "border-primary" : "border-surface-variant";
+    return `
+      <div class="flex items-start gap-md mb-4 relative">
+        <button data-step="${s.step_number}" aria-label="สลับสถานะขั้น ${s.step_number}"
+          class="w-12 h-12 rounded-full ${dotBg} border-2 flex items-center justify-center shadow-[0_4px_0_${dotShadow}] z-10 shrink-0 mt-1 ${current && !done ? "pulse-animation" : ""} transition-all">
+          ${done ? icon("check", { fill: true, cls: "text-on-primary" }) : current ? icon("play_arrow", { fill: true, cls: "text-on-primary" }) : `<span class="font-headline font-extrabold text-on-surface-variant">${s.step_number}</span>`}
+        </button>
+        <div class="flex-1 min-w-0 bg-surface-container-lowest border-2 ${cardBorder} rounded-xl p-md shadow-[0_4px_0_#0d0f08]">
+          <div class="flex items-center justify-between gap-sm">
+            <h3 class="font-headline font-bold text-[16px] ${done || current ? "text-primary" : "text-on-surface"}">${esc(s.title)}</h3>
+            ${s.target_period ? `<span class="shrink-0 text-[11px] font-bold text-secondary bg-secondary-fixed/40 rounded-full px-2 py-0.5">${esc(s.target_period)}</span>` : ""}
+          </div>
+          ${s.description ? `<p class="text-[14px] text-on-surface-variant mt-1 leading-relaxed">${esc(s.description)}</p>` : ""}
+          <button data-step="${s.step_number}" class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold rounded-lg px-3 py-1.5 border-2 transition-colors ${done ? "border-primary/50 text-primary bg-primary/10" : "border-surface-variant text-on-surface-variant hover:border-primary hover:text-primary"}">
+            ${done ? icon("check", { cls: "text-[16px] align-middle" }) + " ทำเสร็จแล้ว" : "ทำขั้นตอนนี้เสร็จ"}
+          </button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+/* wire ปุ่มในไทม์ไลน์ + อัปเดต progress (badge/bar) — เรียกซ้ำได้หลัง re-render */
+function wireRoadmapTimeline(pathId, roadmap, timelineId = "rm-timeline") {
+  const el = document.getElementById(timelineId);
+  if (!el) return;
+  el.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => {
+    const before = roadmapProgress(roadmap, pathId).done;
+    toggleStep(pathId, +b.dataset.step);
+    el.innerHTML = roadmapTimelineHTML(roadmap, pathId);
+    wireRoadmapTimeline(pathId, roadmap, timelineId);
+    const p = roadmapProgress(roadmap, pathId);
+    updateRoadmapProgress(pathId, roadmap);
+    if (p.done === p.total && before < p.total) toast("เยี่ยมมาก! ทำครบทุกขั้นตอนแล้ว 🎉");
+  }));
+}
+function updateRoadmapProgress(pathId, roadmap) {
+  const { done, total, pct } = roadmapProgress(roadmap, pathId);
+  document.querySelectorAll("[data-rm-badge]").forEach((e) => { e.textContent = `เสร็จ ${done}/${total}`; });
+  document.querySelectorAll("[data-rm-bar]").forEach((e) => { e.style.width = pct + "%"; });
+  document.querySelectorAll("[data-rm-pct]").forEach((e) => { e.textContent = pct + "%"; });
+}
 
 /* ---------- Helpers ---------- */
 const $app = () => document.getElementById("app");
@@ -774,27 +850,8 @@ function viewRoadmap() {
   const prog = state.flow.program || {};
   const roadmap = state.flow.roadmap || [];
   const rounds = state.flow.rounds || [];
-  const total = roadmap.length || 1;
-
-  // Timeline nodes: step 1 = current (pulsing), rest = upcoming (Phase 2 adds real state machine)
-  const nodes = roadmap.map((s, i) => {
-    const current = i === 0;
-    const dotShadow = current ? "#96a80a" : "#0d0f08";
-    const dotBg = current ? "bg-primary-container border-[#96a80a]" : "bg-surface-container-high border-surface-variant";
-    return `
-      <div class="flex items-start gap-md mb-6 relative">
-        <div class="w-12 h-12 rounded-full ${dotBg} border-2 flex items-center justify-center shadow-[0_4px_0_${dotShadow}] z-10 shrink-0 mt-1 ${current ? "pulse-animation" : ""}">
-          ${current ? icon("play_arrow", { fill: true, cls: "text-on-primary" }) : `<span class="font-headline font-extrabold text-on-surface-variant">${s.step_number}</span>`}
-        </div>
-        <div class="flex-1 bg-surface-container-lowest border-2 ${current ? "border-primary" : "border-surface-variant"} rounded-xl p-md shadow-[0_4px_0_#0d0f08]">
-          <div class="flex items-center justify-between gap-sm">
-            <h3 class="font-headline font-bold text-[16px] ${current ? "text-primary" : "text-on-surface"}">${esc(s.title)}</h3>
-            ${s.target_period ? `<span class="shrink-0 text-[11px] font-bold text-secondary bg-secondary-fixed/40 rounded-full px-2 py-0.5">${esc(s.target_period)}</span>` : ""}
-          </div>
-          ${s.description ? `<p class="text-[14px] text-on-surface-variant mt-1 leading-relaxed">${esc(s.description)}</p>` : ""}
-        </div>
-      </div>`;
-  }).join("");
+  const pathId = state.flow.pathId;
+  const p = roadmapProgress(roadmap, pathId);
 
   // TCAS round pills → open detail panel
   const roundPills = rounds.length ? rounds.map((r, i) => `
@@ -809,7 +866,7 @@ function viewRoadmap() {
 
   // BUG-6: use dashShell not shellApp (old orphan topbar)
   return dashShell(`
-    <div class="flex items-center gap-3 mb-5">
+    <div class="flex items-center gap-3 mb-4">
       <button data-nav="roadmap-list" class="p-2 rounded-xl border border-surface-variant text-on-surface-variant hover:border-primary transition-colors">
         ${sl("arrow_left",{size:18})}
       </button>
@@ -817,16 +874,27 @@ function viewRoadmap() {
         <h1 class="font-display font-bold text-[20px] text-primary leading-tight truncate">${esc(state.flow.name || prog.name || "เส้นทางของคุณ")}</h1>
         <p class="text-[12px] text-on-surface-variant truncate">${esc(prog.name || "")}${prog.uni ? " · " + esc(prog.uni) : ""}</p>
       </div>
-      <span class="shrink-0 ml-auto text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">ขั้น 1/${total}</span>
+      <span data-rm-badge class="shrink-0 ml-auto text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">เสร็จ ${p.done}/${p.total}</span>
+    </div>
+
+    <!-- progress bar -->
+    <div class="mb-5">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-[12px] text-on-surface-variant">ความคืบหน้า</span>
+        <span data-rm-pct class="text-[12px] font-mono font-bold text-primary">${p.pct}%</span>
+      </div>
+      <div class="h-2.5 rounded-full bg-surface-variant overflow-hidden">
+        <div data-rm-bar class="h-full rounded-full bg-primary" style="width:${p.pct}%;transition:width .5s cubic-bezier(.32,.78,.2,1)"></div>
+      </div>
     </div>
 
     <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร TCAS</h2>
     <div class="flex gap-sm overflow-x-auto no-scrollbar pb-2 mb-5">${roundPills}</div>
 
-    <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว</h2>
+    <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว <span class="font-normal text-on-surface-variant">· แตะวงกลมหรือปุ่มเพื่อทำเครื่องหมายเสร็จ</span></h2>
     <div class="relative">
       <div class="absolute left-[23px] top-4 bottom-4 w-0.5 bg-surface-variant"></div>
-      ${nodes || `<div class="text-on-surface-variant">ยังไม่มีขั้นตอนโรดแมปสำหรับหลักสูตรนี้</div>`}
+      <div id="rm-timeline">${roadmap.length ? roadmapTimelineHTML(roadmap, pathId) : `<div class="text-on-surface-variant">ยังไม่มีขั้นตอนโรดแมปสำหรับหลักสูตรนี้</div>`}</div>
     </div>
     ${detailPanelSkeleton()}
   `);
@@ -1298,6 +1366,7 @@ function wireView(v) {
     $app().querySelectorAll("[data-round]").forEach((b) => b.addEventListener("click", () => {
       openRound(state.flow.rounds[+b.dataset.round]);
     }));
+    wireRoadmapTimeline(state.flow.pathId, state.flow.roadmap || []);
   }
 }
 
