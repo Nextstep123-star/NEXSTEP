@@ -254,11 +254,11 @@ async function fetchPrograms(facultyId, trackFlag) {
   // ข้อมูลจริง: accepts_* flags เป็น null เกือบทั้งหมด → กรอง "true หรือ null (ไม่ระบุ)"
   // เพื่อไม่ให้หลักสูตรหายทั้งคณะ (ถ้าอนาคต flag ถูกเซ็ต false ค่อยถูกกรองออก)
   const q = db.from("programs")
-    .select("id,major_name,major_clean,degree_name,program_type,tuition_fee,university_id,universities(name_th,campus_name)")
+    .select("id,major_name,major_clean,degree_name,program_type,tuition_fee,university_id,universities(name_th,campus_name,region)")
     .eq("faculty_id", facultyId)
     .or(`${trackFlag}.is.null,${trackFlag}.eq.true`)
     .order("major_name")
-    .limit(100);
+    .limit(300);
   const { data, error } = await q;
   if (error) throw error;
   return data;
@@ -627,6 +627,33 @@ async function viewFaculty() {
 }
 
 /* --- programs --- */
+/* ช่วงค่าเทอม (บาท/เทอม) สำหรับตัวกรอง */
+const TUITION_RANGES = {
+  "0": { label: "≤ 20,000", lo: 0, hi: 20000 },
+  "1": { label: "20,001–40,000", lo: 20001, hi: 40000 },
+  "2": { label: "40,001–80,000", lo: 40001, hi: 80000 },
+  "3": { label: "> 80,000", lo: 80001, hi: Infinity },
+};
+
+function programCard(p) {
+  const uni = p.universities?.name_th || "";
+  const campus = p.universities?.campus_name && p.universities.campus_name !== "วิทยาเขตหลัก" ? " · " + p.universities.campus_name : "";
+  const region = p.universities?.region || "";
+  const name = p.major_clean || p.major_name || p.degree_name || "หลักสูตร";
+  return `
+    <button data-prog='${esc(JSON.stringify({ id: p.id, name, uni }))}' class="tactile-button w-full text-left bg-surface-container-lowest border-2 border-surface-variant rounded-xl p-md shadow-[0_4px_0_#0d0f08]">
+      <div class="flex items-start justify-between gap-sm">
+        <div class="font-headline font-bold text-[16px] text-on-surface leading-snug">${esc(name)}</div>
+        <span class="shrink-0 text-[11px] font-bold text-primary bg-primary-container/15 rounded-full px-2 py-0.5">${esc(p.program_type || "")}</span>
+      </div>
+      <div class="text-[13px] text-on-surface-variant mt-1">${esc(uni)}${esc(campus)}</div>
+      <div class="flex items-center justify-between gap-2 mt-2">
+        <div class="text-[13px] font-bold ${p.tuition_fee == null ? "text-outline" : "text-secondary"}">${icon("payments", { cls: "text-[16px] align-middle" })} ${fmtTuition(p.tuition_fee)}</div>
+        ${region ? `<span class="shrink-0 text-[11px] font-medium text-on-surface-variant bg-surface-variant/60 rounded-full px-2 py-0.5">${esc(region)}</span>` : ""}
+      </div>
+    </button>`;
+}
+
 async function viewPrograms() {
   $app().innerHTML = shellCentered(`${backBtn("faculty")}<div class="py-2xl flex justify-center">${loader()}</div>`);
   const trackFlag = TRACKS.find((t) => t.key === state.flow.track)?.flag || "accepts_sci_math";
@@ -634,35 +661,74 @@ async function viewPrograms() {
   try { programs = await fetchPrograms(state.flow.facultyId, trackFlag); }
   catch (e) { toast("โหลดหลักสูตรไม่สำเร็จ ลองใหม่อีกครั้ง"); return; }
 
-  const cards = programs.length ? programs.map((p) => {
-    const uni = p.universities?.name_th || "";
-    const campus = p.universities?.campus_name && p.universities.campus_name !== "วิทยาเขตหลัก" ? " · " + p.universities.campus_name : "";
-    const name = p.major_clean || p.major_name || p.degree_name || "หลักสูตร";
-    return `
-      <button data-prog='${esc(JSON.stringify({ id: p.id, name, uni }))}' class="tactile-button w-full text-left bg-surface-container-lowest border-2 border-surface-variant rounded-xl p-md shadow-[0_4px_0_#0d0f08]">
-        <div class="flex items-start justify-between gap-sm">
-          <div class="font-headline font-bold text-[16px] text-on-surface leading-snug">${esc(name)}</div>
-          <span class="shrink-0 text-[11px] font-bold text-primary bg-primary-container/15 rounded-full px-2 py-0.5">${esc(p.program_type || "")}</span>
-        </div>
-        <div class="text-[13px] text-on-surface-variant mt-1">${esc(uni)}${esc(campus)}</div>
-        <div class="text-[13px] font-bold mt-2 ${p.tuition_fee == null ? "text-outline" : "text-secondary"}">${icon("payments", { cls: "text-[16px] align-middle" })} ${fmtTuition(p.tuition_fee)}</div>
-      </button>`;
-  }).join("")
-    : `<div class="text-center text-on-surface-variant py-xl">ไม่พบหลักสูตรสำหรับสายนี้ในคณะที่เลือก<br/>ลองเปลี่ยนคณะหรือสายการเรียนดูนะ</div>`;
+  // ภูมิภาคที่มีจริงในผลลัพธ์ (เรียงตามจำนวนมาก→น้อย)
+  const regionCount = {};
+  programs.forEach((p) => { const r = p.universities?.region; if (r) regionCount[r] = (regionCount[r] || 0) + 1; });
+  const regions = Object.keys(regionCount).sort((a, b) => regionCount[b] - regionCount[a]);
+
+  const selCls = "ob-input pr-9 text-[14px]";
+  const wrapSel = (inner) => `<div class="relative">${inner}<span class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant text-[12px]">▾</span></div>`;
+
+  const filterBar = `
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-md">
+      ${wrapSel(`<select id="f-region" class="${selCls}">
+        <option value="all">🌏 ทุกภูมิภาค</option>
+        ${regions.map((r) => `<option value="${esc(r)}">${esc(r)} (${regionCount[r]})</option>`).join("")}
+      </select>`)}
+      ${wrapSel(`<select id="f-range" class="${selCls}">
+        <option value="all">ค่าเทอม: ทั้งหมด</option>
+        ${Object.entries(TUITION_RANGES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}
+      </select>`)}
+      ${wrapSel(`<select id="f-sort" class="${selCls}">
+        <option value="default">เรียง: เริ่มต้น</option>
+        <option value="asc">ค่าเทอม: ต่ำ → สูง</option>
+        <option value="desc">ค่าเทอม: สูง → ต่ำ</option>
+      </select>`)}
+    </div>`;
 
   $app().innerHTML = shellCentered(`
     ${backBtn("faculty")}
-    <div class="mb-lg">
+    <div class="mb-md">
       <h1 class="font-display font-extrabold text-[24px] text-on-surface">${esc(state.flow.facultyName)}</h1>
-      <p class="text-on-surface-variant mt-1">${programs.length} หลักสูตรที่รับสายของคุณ · เลือก 1 เพื่อดูโรดแมป</p>
+      <p class="text-on-surface-variant mt-1" id="prog-count">${programs.length} หลักสูตร · เลือก 1 เพื่อดูโรดแมป</p>
     </div>
-    <div class="space-y-md">${cards}</div>
+    ${programs.length ? filterBar : ""}
+    <div id="prog-list" class="space-y-md"></div>
   `);
   wireCommon();
-  $app().querySelectorAll("[data-prog]").forEach((b) => b.addEventListener("click", () => {
-    state.flow.program = JSON.parse(b.dataset.prog);
-    go("cooking");
-  }));
+
+  const listEl = document.getElementById("prog-list");
+  const countEl = document.getElementById("prog-count");
+  const regionSel = document.getElementById("f-region");
+  const rangeSel = document.getElementById("f-range");
+  const sortSel = document.getElementById("f-sort");
+
+  function applyFilters() {
+    let list = programs.slice();
+    if (regionSel && regionSel.value !== "all") list = list.filter((p) => (p.universities?.region || "") === regionSel.value);
+    if (rangeSel && rangeSel.value !== "all") {
+      const r = TUITION_RANGES[rangeSel.value];
+      list = list.filter((p) => p.tuition_fee != null && p.tuition_fee >= r.lo && p.tuition_fee <= r.hi);
+    }
+    if (sortSel && sortSel.value === "asc") list.sort((a, b) => (a.tuition_fee ?? Infinity) - (b.tuition_fee ?? Infinity));
+    else if (sortSel && sortSel.value === "desc") list.sort((a, b) => (b.tuition_fee ?? -Infinity) - (a.tuition_fee ?? -Infinity));
+
+    if (countEl) countEl.textContent = `${list.length} หลักสูตร · เลือก 1 เพื่อดูโรดแมป`;
+    listEl.innerHTML = list.length
+      ? list.map(programCard).join("")
+      : `<div class="text-center text-on-surface-variant py-xl">ไม่พบหลักสูตรตามตัวกรอง<br/>ลองปรับภูมิภาคหรือช่วงค่าเทอมดูนะ</div>`;
+    listEl.querySelectorAll("[data-prog]").forEach((b) => b.addEventListener("click", () => {
+      state.flow.program = JSON.parse(b.dataset.prog);
+      go("cooking");
+    }));
+  }
+
+  if (!programs.length) {
+    listEl.innerHTML = `<div class="text-center text-on-surface-variant py-xl">ไม่พบหลักสูตรในคณะที่เลือก<br/>ลองเปลี่ยนคณะหรือสายการเรียนดูนะ</div>`;
+  } else {
+    [regionSel, rangeSel, sortSel].forEach((s) => s && s.addEventListener("change", applyFilters));
+    applyFilters();
+  }
 }
 
 /* --- cooking ("Let me cook") --- */
