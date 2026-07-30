@@ -46,16 +46,21 @@ async function viewNews() {
   `);
   wireCommon();
 
-  // Fetch from Supabase
+  // Fetch from Supabase — fallback → TCAS70 news เมื่อ DB ว่าง/ล่ม/โหมด demo
   let articles = [];
   try {
-    const { data, error } = await db.from("news")
-      .select("id,title,body,category,published_at")
-      .eq("is_published", true)
-      .order("published_at", { ascending: false })
-      .limit(30);
-    if (!error) articles = data || [];
+    if (!state.admin) {
+      const { data, error } = await db.from("news")
+        .select("id,title,body,category,published_at")
+        .eq("is_published", true)
+        .order("published_at", { ascending: false })
+        .limit(30);
+      if (!error) articles = data || [];
+    }
   } catch { }
+  if (!articles.length) {
+    articles = TCAS70.news.map((n, i) => ({ id: "t70n_" + i, ...n }));
+  }
 
   // Build filter tabs from unique categories
   const cats = ["ทั้งหมด", ...new Set(articles.map(a => a.category))];
@@ -116,13 +121,19 @@ async function viewCalendar() {
   wireCommon();
 
   // Fetch ALL events from Supabase (small table, fetch once)
+  // fallback → TCAS70 schedule เมื่อ DB ว่าง/ล่ม/โหมด demo
   let events = [];
   try {
-    const { data } = await db.from("events")
-      .select("id,title,event_date,type,color,description")
-      .order("event_date", { ascending: true });
-    events = (data || []).map(e => ({ ...e, _date: new Date(e.event_date) }));
+    if (!state.admin) {
+      const { data } = await db.from("events")
+        .select("id,title,event_date,type,color,description")
+        .order("event_date", { ascending: true });
+      events = (data || []).map(e => ({ ...e, _date: new Date(e.event_date) }));
+    }
   } catch { }
+  if (!events.length) {
+    events = TCAS70.schedule.map((e, i) => ({ id: "t70_" + i, ...e, _date: new Date(e.event_date) }));
+  }
 
   function renderCalendar() {
     // Month label
@@ -601,6 +612,137 @@ function wireProfile() {
   });
 
   document.getElementById("btn-logout")?.addEventListener("click", doLogout);
+}
+
+// ── Chance Calculator (คำนวณโอกาสเข้าคณะในฝัน) — ข้อมูล TCAS70 ──
+const CALC = { fac: null, scores: {} };
+
+function viewCalculator() {
+  if (!CALC.fac) CALC.fac = TCAS70.faculties[0].key;
+  const facOptions = TCAS70.faculties.map(f =>
+    `<option value="${f.key}" ${f.key === CALC.fac ? "selected" : ""}>${esc(f.label)}</option>`).join("");
+
+  document.getElementById("app").innerHTML = dashShell(`
+    <div class="max-w-2xl mx-auto w-full">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-11 h-11 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">${sl("target",{size:22,color:"#c2d90f"})}</div>
+        <div class="min-w-0">
+          <h1 class="font-display font-bold text-[22px] text-on-surface leading-tight">คำนวณโอกาสเข้าคณะในฝัน</h1>
+          <p class="text-[12px] text-on-surface-variant">อ้างอิงเกณฑ์ ${esc(TCAS70.label)} · ${esc(TCAS70.source)}</p>
+        </div>
+      </div>
+
+      <div class="db-card p-3 mb-4 flex items-start gap-2" style="background:rgba(234,179,8,.06);border-color:rgba(234,179,8,.25)">
+        ${sl("info",{size:16,color:"#eab308",cls:"shrink-0"})}
+        <p class="text-[12px] text-on-surface-variant leading-relaxed">${esc(TCAS70.estimateNote)} — เป็นการประเมินคร่าวๆ เกณฑ์จริงแต่ละที่ต่างกัน ตรวจสอบที่ mytcas.com</p>
+      </div>
+
+      <label class="ob-label">เลือกคณะเป้าหมาย</label>
+      <div class="relative mb-4">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">${sl("school",{size:18,color:"#6b7a08"})}</span>
+        <select id="calc-fac" class="ob-input pl-11">${facOptions}</select>
+      </div>
+
+      <div id="calc-inputs"></div>
+
+      <button id="calc-run" class="tactile-button w-full bg-primary-container text-on-primary font-display font-bold py-3.5 rounded-xl border-b-4 border-[#6b7a08] flex items-center justify-center gap-2 mt-1 mb-4">
+        ${sl("target",{size:18,color:"#16180f"})} คำนวณโอกาส
+      </button>
+
+      <div id="calc-result"></div>
+    </div>
+  `);
+  wireCommon();
+  renderCalcInputs();
+  document.getElementById("calc-fac")?.addEventListener("change", (e) => {
+    CALC.fac = e.target.value;
+    renderCalcInputs();
+    const r = document.getElementById("calc-result"); if (r) r.innerHTML = "";
+  });
+  document.getElementById("calc-run")?.addEventListener("click", () => {
+    const fac = TCAS70.faculties.find(f => f.key === CALC.fac);
+    renderCalcResult(fac, tcasComputeChance(fac, CALC.scores));
+  });
+}
+
+function renderCalcInputs() {
+  const fac = TCAS70.faculties.find(f => f.key === CALC.fac);
+  const box = document.getElementById("calc-inputs");
+  if (!fac || !box) return;
+  const keys = tcasFacultySubjects(fac);
+  box.innerHTML = `
+    <div class="db-card p-4 mb-4">
+      <div class="text-[12px] text-on-surface-variant mb-3">กรอกคะแนนที่มี (เว้นว่างได้ — ระบบจะถือว่ายังไม่มี = 0)</div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        ${keys.map(k => {
+          const s = TCAS70.subjects[k];
+          const val = CALC.scores[k] ?? "";
+          return `<div>
+            <label class="ob-label">${esc(s.label)} <span class="text-on-surface-variant font-normal">/ ${s.max}</span></label>
+            <input data-score="${k}" type="number" min="0" max="${s.max}" step="${s.step}" value="${esc(String(val))}" placeholder="${esc(s.ph)}" class="ob-input font-mono" />
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="mt-3 text-[12px] text-on-surface-variant">เกณฑ์อ้างอิง: ${esc(fac.round)}${fac.minGpax ? ` · GPAX ขั้นต่ำ ${fac.minGpax.toFixed(2)}` : ""} · คะแนนอ้างอิง ~${fac.ref}%</div>
+    </div>`;
+  box.querySelectorAll("[data-score]").forEach(inp =>
+    inp.addEventListener("input", () => { CALC.scores[inp.dataset.score] = inp.value; }));
+}
+
+function renderCalcResult(fac, res) {
+  const box = document.getElementById("calc-result");
+  if (!box) return;
+  const circ = 2 * Math.PI * 52;
+  const dash = circ * (res.chance / 100);
+  const bars = res.rows.map(r => {
+    const s = TCAS70.subjects[r.subj];
+    return `<div class="mb-2">
+      <div class="flex items-center justify-between text-[12px] mb-1">
+        <span class="text-on-surface">${esc(s.label)} <span class="text-on-surface-variant">· น้ำหนัก ${r.w}%</span></span>
+        <span class="font-mono ${r.has ? "text-on-surface" : "text-error"}">${r.has ? r.pct + "%" : "ไม่ได้กรอก"}</span>
+      </div>
+      <div class="h-2 rounded-full bg-surface-variant overflow-hidden">
+        <div class="h-full rounded-full" style="width:${r.pct}%;background:${r.pct >= fac.ref ? "#22c55e" : "#c2d90f"};transition:width .5s"></div>
+      </div>
+    </div>`;
+  }).join("");
+  const weak = res.rows.filter(r => r.pct < fac.ref).sort((a, b) => b.w - a.w).slice(0, 3);
+  const hints = weak.length ? `<div class="mt-3 text-[13px] text-on-surface-variant"><span class="font-bold text-on-surface">ควรเพิ่มคะแนน:</span> ${weak.map(r => esc(TCAS70.subjects[r.subj].label)).join(" · ")}</div>` : "";
+
+  box.innerHTML = `
+    <div class="db-card p-5">
+      <div class="flex flex-col sm:flex-row items-center gap-5">
+        <div class="relative shrink-0" style="width:130px;height:130px">
+          <svg width="130" height="130" viewBox="0 0 130 130">
+            <circle cx="65" cy="65" r="52" fill="none" stroke="#3a3f34" stroke-width="12"/>
+            <circle cx="65" cy="65" r="52" fill="none" stroke="${res.label.c}" stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="${dash} ${circ}" transform="rotate(-90 65 65)" style="transition:stroke-dasharray .8s cubic-bezier(.32,.78,.2,1)"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span class="font-mono font-bold text-[34px] leading-none" style="color:${res.label.c}">${res.chance}%</span>
+            <span class="text-[11px] text-on-surface-variant mt-1">โอกาสผ่าน</span>
+          </div>
+        </div>
+        <div class="flex-1 min-w-0 text-center sm:text-left">
+          <div class="font-display font-bold text-[18px]" style="color:${res.label.c}">${esc(res.label.t)}</div>
+          <div class="text-[13px] text-on-surface-variant mt-1">${esc(fac.label)} · ${esc(fac.round)}</div>
+          <div class="flex items-center justify-center sm:justify-start gap-4 mt-3">
+            <div><div class="text-[11px] text-on-surface-variant">คะแนนคุณ (ถ่วงน้ำหนัก)</div><div class="font-mono font-bold text-[20px] text-on-surface">${res.composite}%</div></div>
+            <div class="text-on-surface-variant">vs</div>
+            <div><div class="text-[11px] text-on-surface-variant">คะแนนอ้างอิง</div><div class="font-mono font-bold text-[20px] text-on-surface">${res.ref}%</div></div>
+          </div>
+        </div>
+      </div>
+      ${res.gpaxWarn ? `<div class="mt-4 flex items-center gap-2 text-[13px] text-error bg-error/10 rounded-lg px-3 py-2">${sl("info",{size:16,color:"#ffb4ab"})} ${esc(res.gpaxWarn)}</div>` : ""}
+      <div class="mt-5">
+        <div class="font-display font-bold text-[13px] text-on-surface-variant mb-2">คะแนนแต่ละวิชา เทียบเกณฑ์อ้างอิง (${fac.ref}%)</div>
+        ${bars}${hints}
+      </div>
+      <div class="mt-4 text-[11px] text-on-surface-variant leading-relaxed border-t border-surface-variant pt-3">
+        ${sl("info",{size:12,color:"#9aa090",cls:"inline align-middle"})} ${esc(TCAS70.estimateNote)} · เกณฑ์จริงของแต่ละมหาวิทยาลัยดูที่ mytcas.com
+      </div>
+    </div>`;
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // ── Settings ──────────────────────────────────────────────────

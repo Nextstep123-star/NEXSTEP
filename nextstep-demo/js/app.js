@@ -358,9 +358,9 @@ function viewDashboard() {
     { day: "01", month: "มิ.ย.", title: "Open House จุฬา วิศวะ", sub: "แนะแนว · Onsite", dot: "bg-primary" },
   ];
   const news = [
-    { label: "ทปอ. ปรับเกณฑ์ TCAS68 ใช้ TGAT/TPAT ขั้นต่ำ 30%", meta: "25 พ.ค. 68 · ระดับชาติ" },
-    { label: "จุฬาฯ เพิ่มที่นั่ง รอบ Portfolio คณะวิศวะ 20 ที่", meta: "27 พ.ค. 68 · มหาวิทยาลัย" },
-    { label: "กสพท ประกาศวันรับสมัคร TCAS68 รอบ 2 แล้ว", meta: "25 พ.ค. 68 · ข้อสอบ" },
+    { label: "ทปอ. เปิดระบบ myTCAS ปีการศึกษา 2570 — ลงทะเบียน Dek70", meta: "15 ก.ค. 69 · ระดับชาติ" },
+    { label: "สรุปตารางสอบกลาง TCAS70: TGAT/TPAT 30 ม.ค.–1 ก.พ. 70", meta: "10 ก.ค. 69 · ข้อสอบ" },
+    { label: "กสพท ใช้ TPAT1 + 7 วิชา A-Level สัดส่วน 30:70 (TCAS70)", meta: "2 ก.ค. 69 · แนะแนว" },
   ];
   const eventsCol = `
     <div class="db-card p-5">
@@ -433,6 +433,18 @@ function viewDashboard() {
     <!-- path finder banner -->
     ${banner}
 
+    <!-- คำนวณโอกาส banner (TCAS70) -->
+    <div class="db-card p-4 mb-4 flex items-center gap-4" style="background:rgba(194,217,15,.06);border-color:rgba(194,217,15,.2)">
+      <span class="shrink-0">${sl("target", { size: 26, color: "#c2d90f" })}</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-display font-bold text-[15px] text-on-surface">คำนวณโอกาสเข้าคณะในฝัน</div>
+        <div class="text-[12px] text-on-surface-variant">กรอกคะแนน TGAT/TPAT/A-Level · ประเมินโอกาสตามเกณฑ์ TCAS70</div>
+      </div>
+      <button data-nav="calculator" class="shrink-0 tactile-button bg-primary-container text-on-primary font-bold text-[13px] px-4 py-2 rounded-xl border-b-4 border-[#96a80a] whitespace-nowrap">
+        คำนวณเลย →
+      </button>
+    </div>
+
     <!-- bottom 2-col: live from Supabase (BUG-8) -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div class="db-card p-5">
@@ -452,16 +464,31 @@ function viewDashboard() {
 }
 
 // Called after dashShell renders — loads live events+news
+// (ถ้า DB ว่าง/ล่ม/โหมด demo → fallback เป็นข้อมูล TCAS70 client dataset)
 async function loadDashboardLiveData() {
   try {
-    const today = new Date().toISOString().split("T")[0];
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()+60);
-    const [{ data: evs }, { data: newsItems }] = await Promise.all([
-      db.from("events").select("title,event_date,color").gte("event_date", today).lte("event_date", cutoff.toISOString().split("T")[0]).order("event_date").limit(3),
-      db.from("news").select("title,category,published_at").eq("is_published",true).order("published_at",{ascending:false}).limit(3),
-    ]);
     const MONTHS_TH = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
     const dotCls = {error:"bg-error",tertiary:"bg-tertiary",primary:"bg-primary",secondary:"bg-secondary"};
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    let evs = null, newsItems = null;
+    if (!state.admin) {
+      const today = todayStr;
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate()+60);
+      try {
+        const r = await Promise.all([
+          db.from("events").select("title,event_date,color").gte("event_date", today).lte("event_date", cutoff.toISOString().split("T")[0]).order("event_date").limit(3),
+          db.from("news").select("title,category,published_at").eq("is_published",true).order("published_at",{ascending:false}).limit(3),
+        ]);
+        evs = r[0].data; newsItems = r[1].data;
+      } catch { /* network → fallback ข้างล่าง */ }
+    }
+    // fallback → TCAS70 (upcoming schedule + ข่าว)
+    if (!evs || !evs.length) {
+      evs = (TCAS70.schedule.filter(e => e.event_date >= todayStr).slice(0, 3));
+      if (!evs.length) evs = TCAS70.schedule.slice(0, 3);
+    }
+    if (!newsItems || !newsItems.length) newsItems = TCAS70.news.slice(0, 3);
 
     const evEl = document.getElementById("dash-events");
     if (evEl) evEl.innerHTML = (evs||[]).length ? (evs||[]).map(e => {
@@ -493,9 +520,9 @@ function dashSteps() {
     { n: 1, label: "เลือกสาย\nการเรียน", sub: "ม.4", done: true },
     { n: 2, label: "สะสม\nPortfolio", sub: "ม.4-5", done: true },
     { n: 3, label: "เตรียมสอบ\nTPAT3", sub: "ม.5 ปัจจุบัน", current: true },
-    { n: 4, label: "สมัคร\nTCAS รอบ 1", sub: "ต.ค. 67", done: false },
-    { n: 5, label: "สอบ\nTGAT/TPAT", sub: "ธ.ค. 68", done: false },
-    { n: 6, label: "ประกาศ\nผลสอบ", sub: "ก.พ. 68", done: false },
+    { n: 4, label: "สมัคร\nTCAS รอบ 1", sub: "ต.ค. 69", done: false },
+    { n: 5, label: "สอบ\nTGAT/TPAT", sub: "ม.ค. 70", done: false },
+    { n: 6, label: "ประกาศ\nผลสอบ", sub: "พ.ค. 70", done: false },
   ];
   return steps.map((s, i) => {
     const dotCls = s.done
@@ -966,6 +993,7 @@ function dashShell(content) {
         <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-2 pb-1">MAIN</div>
         ${sideNav("home", "Dashboard", "create-path")}
         ${sideNav("map", "My Roadmap", "roadmap-list")}
+        ${sideNav("target", "คำนวณโอกาส", "calculator")}
         ${sideNav("route", "Path Finder", "career")}
         <div class="text-[10px] font-bold text-on-surface-variant tracking-widest px-3 pt-4 pb-1">EXPLORE</div>
         ${sideNav("calendar", "Events & Exams", "calendar")}
@@ -1068,6 +1096,7 @@ function render() {
   if (v === "roadmap-list") return void viewRoadmapList();
   if (v === "news-page")    return void viewNews();
   if (v === "calendar")     return void viewCalendar();
+  if (v === "calculator")   return void viewCalculator();
   if (v === "profile")      return void viewProfileFull();   // BUG-2: async, not sync
   if (v === "settings")     return void viewSettings();      // BUG-2: async
 
