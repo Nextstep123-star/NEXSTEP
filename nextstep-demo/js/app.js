@@ -416,8 +416,9 @@ function viewDashboard() {
       </div>
     </div>` : `
     <div class="db-card p-6 mb-4 flex flex-col items-center text-center gap-3">
-      <span>${sl("map", { size: 40, color: "#9aa090" })}</span>
-      <p class="text-on-surface-variant">ยังไม่มีเส้นทาง</p>
+      <div class="mascot-float">${nexMascot("mascot w-24 h-24", { pose: "wave" })}</div>
+      <p class="text-on-surface font-display font-bold text-[15px]">ยังไม่มีเส้นทางในฝัน</p>
+      <p class="text-on-surface-variant text-[13px] -mt-2">มาสร้างเส้นทางสู่คณะที่ใช่กันเถอะ!</p>
       <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold px-5 py-2.5 rounded-xl border-b-4 border-[#96a80a]">
         ${icon("add")} สร้างเส้นทางใหม่
       </button>
@@ -494,8 +495,8 @@ function viewDashboard() {
     <!-- top header -->
     <div class="flex items-start justify-between mb-5 gap-4">
       <div>
-        <h1 class="font-display font-bold text-[22px] text-on-surface leading-tight">
-          สวัสดี, ${esc(name)} <span class="inline-block align-middle">${sl("wave", { size: 22, color: "#c2d90f" })}</span>
+        <h1 class="font-display font-bold text-[22px] text-on-surface leading-tight flex items-center gap-2">
+          สวัสดี, ${esc(name)} <span class="mascot-float inline-flex">${nexMascot("mascot w-9 h-9", { pose: "wave" })}</span>
         </h1>
         <p class="text-[13px] text-on-surface-variant mt-0.5">${dateStr}</p>
       </div>
@@ -877,10 +878,10 @@ async function viewPrograms() {
 /* --- cooking ("Let me cook") --- */
 async function viewCooking() {
   $app().innerHTML = `
-    <div class="dotted-grid min-h-screen flex flex-col items-center justify-center gap-lg px-md text-center">
-      <div class="cook-spinner"></div>
-      <div>${sl("sparkles", { size: 44, color: "#c2d90f" })}</div>
-      <h2 class="font-display font-extrabold text-[22px] text-primary">กำลังปรุงโรดแมปให้คุณ...</h2>
+    <div class="dotted-grid min-h-screen flex flex-col items-center justify-center gap-md px-md text-center">
+      <div class="mascot-float">${nexMascot("mascot w-28 h-28", { pose: "think" })}</div>
+      <div class="cook-spinner" style="width:44px;height:44px;border-width:5px"></div>
+      <h2 class="font-display font-extrabold text-[22px] text-primary mt-2">น้องเน็กซ์กำลังปรุงโรดแมปให้...</h2>
       <p class="text-on-surface-variant">รวบรวมรอบ TCAS และวิชาที่ต้องใช้</p>
     </div>`;
 
@@ -1044,7 +1045,8 @@ function viewAuth() {
   if (step === "intent") {
     body = `
       <div class="text-center mb-8 pt-4">
-        <div class="flex justify-center mb-5">${logoSvg}</div>
+        <div class="flex justify-center mb-3 mascot-float">${nexMascot("mascot w-20 h-20", { pose: "wave" })}</div>
+        <div class="flex justify-center mb-4">${logoSvg}</div>
         <p class="text-on-surface-variant text-[15px]">Career Path Finder สำหรับนักเรียน ม.3–ม.6</p>
       </div>
       <div class="space-y-3 mb-6">

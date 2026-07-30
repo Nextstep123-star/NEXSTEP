@@ -52,6 +52,14 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--o
 .view.active { display: block; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* NEX mascot — pixel crisp + gentle float/bob */
+.mascot { image-rendering: pixelated; image-rendering: crisp-edges; }
+.mascot-float { animation: mascot-float 2.6s ease-in-out infinite; }
+@keyframes mascot-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.mascot-pop { animation: mascot-pop .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes mascot-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mascot-float, .mascot-pop { animation: none; } }
+
 /* "Let me cook" spinner */
 .cook-spinner {
   width: 64px; height: 64px; border-radius: 9999px;

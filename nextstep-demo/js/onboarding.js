@@ -254,7 +254,7 @@ function obComplete(name) {
   if (!appEl) return;
   appEl.innerHTML = `
     <div class="min-h-screen flex flex-col items-center justify-center text-center px-6 dotted-grid">
-      <div class="ob-confetti mb-4 flex justify-center ${reduce ? "" : "animate-bounce"}">${sl("sparkles", { size: 56, color: "#c2d90f" })}</div>
+      <div class="mb-4 flex justify-center ${reduce ? "" : "mascot-pop"}">${typeof nexMascot === "function" ? nexMascot("mascot w-32 h-32", { pose: "happy" }) : sl("sparkles", { size: 56, color: "#c2d90f" })}</div>
       <h2 class="font-display font-bold text-[26px] text-primary mb-2">ยินดีต้อนรับสู่ NEXTSTEP!</h2>
       <p class="text-on-surface-variant text-[16px]">สวัสดี ${obEsc(name)} พร้อมแล้ว ไปวางแผนกัน</p>
     </div>`;
