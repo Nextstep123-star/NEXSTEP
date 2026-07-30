@@ -113,9 +113,14 @@ async function viewCalendar() {
       </div>
     </div>
     <div id="cal-grid" class="db-card p-4 mb-4"></div>
+    <div id="cal-day-detail"></div>
     <h2 class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมที่กำลังจะมาถึง</h2>
-    <div id="cal-upcoming" class="space-y-2">
+    <div id="cal-upcoming" class="space-y-2 mb-6">
       ${[1,2,3].map(()=>`<div class="db-card p-4 animate-pulse h-16"></div>`).join("")}
+    </div>
+    <h2 class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมทั้งหมด</h2>
+    <div id="cal-all" class="space-y-2">
+      ${[1,2].map(()=>`<div class="db-card p-4 animate-pulse h-16"></div>`).join("")}
     </div>
   `);
   wireCommon();
@@ -135,68 +140,129 @@ async function viewCalendar() {
     events = TCAS70.schedule.map((e, i) => ({ id: "t70_" + i, ...e, _date: new Date(e.event_date) }));
   }
 
-  function renderCalendar() {
-    // Month label
+  let selected = null; // "Y-M-D" ของวันที่คลิก
+  const eventsOn = (y, m, d) => events.filter(e => e._date.getFullYear() === y && e._date.getMonth() === m && e._date.getDate() === d);
+
+  function renderGrid() {
     const label = document.getElementById("cal-month-label");
     if (label) label.textContent = `${MONTHS_TH[viewMonth]} ${viewYear + 543}`;
 
-    // Grid
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const cells = [];
     for (let i = 0; i < firstDay; i++) cells.push(`<div></div>`);
     for (let d = 1; d <= daysInMonth; d++) {
       const isToday = d === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
-      const ev = events.find(e => e._date.getDate()===d && e._date.getMonth()===viewMonth && e._date.getFullYear()===viewYear);
-      const col = ev ? evColor(ev.color) : null;
+      const dayEvents = eventsOn(viewYear, viewMonth, d);
+      const has = dayEvents.length > 0;
+      const isSel = selected === `${viewYear}-${viewMonth}-${d}`;
+      const dots = has
+        ? `<span class="flex gap-0.5 mt-0.5 h-1.5">${dayEvents.slice(0,3).map(e => `<span class="w-1.5 h-1.5 rounded-full ${evColor(e.color).bg}"></span>`).join("")}</span>`
+        : `<span class="mt-0.5 h-1.5"></span>`;
       cells.push(`
-        <div class="flex flex-col items-center py-1">
-          <span class="w-8 h-8 flex items-center justify-center rounded-full font-mono text-[13px] font-bold ${isToday?"bg-primary text-on-primary":"text-on-surface-variant"}">${d}</span>
-          ${ev ? `<span class="w-1.5 h-1.5 rounded-full ${col.bg} mt-0.5"></span>` : ""}
-        </div>`);
+        <button ${has ? `data-day="${d}"` : "disabled"} class="flex flex-col items-center py-1 rounded-lg transition-colors ${has ? "cursor-pointer hover:bg-surface-variant/40" : "cursor-default"} ${isSel ? "bg-primary/10 ring-1 ring-primary/50" : ""}">
+          <span class="w-8 h-8 flex items-center justify-center rounded-full font-mono text-[13px] font-bold ${isToday ? "bg-primary text-on-primary" : isSel ? "text-primary" : has ? "text-on-surface" : "text-on-surface-variant"}">${d}</span>
+          ${dots}
+        </button>`);
     }
     const grid = document.getElementById("cal-grid");
-    if (grid) grid.innerHTML = `
+    if (!grid) return;
+    grid.innerHTML = `
       <div class="grid grid-cols-7 gap-1 mb-2">
-        ${DAYS_TH.map(d=>`<div class="text-center text-[11px] font-bold text-on-surface-variant py-1">${d}</div>`).join("")}
+        ${DAYS_TH.map(d => `<div class="text-center text-[11px] font-bold text-on-surface-variant py-1">${d}</div>`).join("")}
       </div>
-      <div class="grid grid-cols-7 gap-1">${cells.join("")}</div>`;
+      <div class="grid grid-cols-7 gap-1">${cells.join("")}</div>
+      <div class="text-[11px] text-on-surface-variant text-center mt-2">แตะวันที่มีจุด เพื่อดูรายละเอียดกิจกรรม</div>`;
+    grid.querySelectorAll("[data-day]").forEach(b => b.addEventListener("click", () => {
+      const key = `${viewYear}-${viewMonth}-${+b.dataset.day}`;
+      selected = (selected === key) ? null : key;
+      renderGrid();
+      renderDayDetail();
+      if (selected) document.getElementById("cal-day-detail")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }));
+  }
 
-    // Upcoming — events from today onwards (next 90 days)
+  function renderDayDetail() {
+    const box = document.getElementById("cal-day-detail");
+    if (!box) return;
+    if (!selected) { box.innerHTML = ""; return; }
+    const [y, m, d] = selected.split("-").map(Number);
+    const list = eventsOn(y, m, d);
+    if (!list.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `
+      <div class="db-card p-4 mb-4" style="border-color:rgba(194,217,15,.4)">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-display font-bold text-[15px] text-primary">${d} ${MONTHS_TH[m]} ${y + 543}</div>
+          <button id="cal-day-close" class="text-[12px] text-on-surface-variant hover:text-primary font-bold">ปิด ✕</button>
+        </div>
+        ${list.map(e => {
+          const col = evColor(e.color);
+          return `<div class="flex items-start gap-3 py-2 border-t border-surface-variant first:border-0">
+            <span class="w-2.5 h-2.5 rounded-full ${col.bg} mt-1.5 shrink-0"></span>
+            <div class="flex-1 min-w-0">
+              <div class="font-bold text-[14px] text-on-surface">${esc(e.title)}</div>
+              ${e.type ? `<div class="text-[12px] ${col.text} mt-0.5 font-medium">${esc(e.type)}</div>` : ""}
+              ${e.description ? `<div class="text-[12px] text-on-surface-variant mt-1 leading-relaxed">${esc(e.description)}</div>` : ""}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`;
+    box.querySelector("#cal-day-close")?.addEventListener("click", () => { selected = null; renderGrid(); renderDayDetail(); });
+  }
+
+  function renderUpcoming() {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() + 90);
     const upcoming = events.filter(e => e._date >= today && e._date <= cutoff);
     const upEl = document.getElementById("cal-upcoming");
-    if (upEl) upEl.innerHTML = upcoming.length
-      ? upcoming.map(e => {
-          const col = evColor(e.color);
-          return `
-            <div class="flex items-start gap-3 db-card p-3">
-              <div class="w-11 h-11 rounded-xl ${col.dim} flex items-center justify-center shrink-0">
-                <span class="font-mono font-bold text-[13px] ${col.text}">${e._date.getDate()}</span>
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="font-bold text-[14px] text-on-surface truncate">${esc(e.title)}</div>
-                <div class="text-[12px] text-on-surface-variant mt-0.5">
-                  ${e._date.getDate()} ${MONTHS_TH[e._date.getMonth()]} ${e._date.getFullYear()+543}
-                  ${e.type ? ` · ${esc(e.type)}` : ""}
-                </div>
-              </div>
-              <span class="shrink-0 w-2 h-2 rounded-full ${col.bg} mt-2"></span>
-            </div>`;
-        }).join("")
+    if (upEl) upEl.innerHTML = upcoming.length ? upcoming.map(eventRow).join("")
       : `<div class="text-center py-6 text-on-surface-variant text-[14px]">ไม่มีกิจกรรมใน 90 วันข้างหน้า</div>`;
   }
 
-  renderCalendar();
+  // การ์ดกิจกรรม — คลิกเพื่อกระโดดไปเดือนนั้น + เลือกวัน
+  function eventRow(e) {
+    const col = evColor(e.color);
+    return `<button data-jump="${e._date.getFullYear()}-${e._date.getMonth()}-${e._date.getDate()}" class="w-full text-left flex items-start gap-3 db-card p-3 hover:border-primary/40 transition-colors">
+      <div class="w-11 h-11 rounded-xl ${col.dim} flex flex-col items-center justify-center shrink-0 leading-none">
+        <span class="font-mono font-bold text-[14px] ${col.text}">${e._date.getDate()}</span>
+        <span class="text-[9px] ${col.text} mt-0.5">${MONTHS_TH[e._date.getMonth()]}</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-[14px] text-on-surface truncate">${esc(e.title)}</div>
+        <div class="text-[12px] text-on-surface-variant mt-0.5">${e._date.getDate()} ${MONTHS_TH[e._date.getMonth()]} ${e._date.getFullYear() + 543}${e.type ? ` · ${esc(e.type)}` : ""}</div>
+      </div>
+      <span class="shrink-0 w-2 h-2 rounded-full ${col.bg} mt-2"></span>
+    </button>`;
+  }
+
+  function renderAll() {
+    const box = document.getElementById("cal-all");
+    if (!box) return;
+    const sorted = [...events].sort((a, b) => a._date - b._date);
+    box.innerHTML = sorted.length ? sorted.map(eventRow).join("")
+      : `<div class="text-center py-6 text-on-surface-variant text-[14px]">ยังไม่มีกิจกรรม</div>`;
+  }
+
+  // คลิกการ์ด (ทั้ง upcoming + all) → ไปเดือนนั้น + เลือกวัน + โชว์รายละเอียด
+  function wireJump() {
+    document.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => {
+      const [y, m, d] = b.dataset.jump.split("-").map(Number);
+      viewYear = y; viewMonth = m; selected = `${y}-${m}-${d}`;
+      renderGrid(); renderDayDetail();
+      document.getElementById("cal-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
+  }
+
+  function drawAll() { renderGrid(); renderDayDetail(); renderUpcoming(); renderAll(); wireJump(); }
+  drawAll();
 
   // Navigation
   document.getElementById("cal-prev")?.addEventListener("click", () => {
     if (viewMonth === 0) { viewMonth = 11; viewYear--; } else viewMonth--;
-    renderCalendar();
+    renderGrid();
   });
   document.getElementById("cal-next")?.addEventListener("click", () => {
     if (viewMonth === 11) { viewMonth = 0; viewYear++; } else viewMonth++;
-    renderCalendar();
+    renderGrid();
   });
 }
 
