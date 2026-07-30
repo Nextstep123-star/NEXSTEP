@@ -111,9 +111,10 @@ function enterAdminMode() {
   // seed เส้นทางตัวอย่าง (ถ้ายังไม่มี) เพื่อให้ dashboard/roadmap มีของโชว์
   try {
     if (!getPaths().length) {
+      // programId เป็น id จริง (มี roadmap/rounds ใน DB) เพื่อให้ demo โชว์เส้นทางจริง
       const demo = [
-        { id: "p_demo_med", name: "หมอในฝัน", programName: "แพทยศาสตรบัณฑิต", uni: "จุฬาลงกรณ์มหาวิทยาลัย", programId: 1, track: "sci_math", createdAt: Date.now() },
-        { id: "p_demo_eng", name: "วิศวะ คอมพิวเตอร์", programName: "วิศวกรรมคอมพิวเตอร์", uni: "มหาวิทยาลัยเกษตรศาสตร์", programId: 2, track: "sci_math", createdAt: Date.now() - 86400000 },
+        { id: "p_demo_med", name: "หมอในฝัน", programName: "แพทยศาสตรบัณฑิต", uni: "มหาวิทยาลัยธรรมศาสตร์", programId: "10050211100101A", track: "sci_math", createdAt: Date.now() },
+        { id: "p_demo_eng", name: "วิศวะ คอมพิวเตอร์", programName: "วิศวกรรมคอมพิวเตอร์", uni: "มหาวิทยาลัยศรีนครินทรวิโรฒ", programId: "10090209300501A", track: "sci_math", createdAt: Date.now() - 86400000 },
       ];
       savePaths(demo);
       setMain(demo[0].id);
@@ -250,11 +251,14 @@ async function fetchFaculties() {
   return data;
 }
 async function fetchPrograms(facultyId, trackFlag) {
-  let q = db.from("programs")
+  // ข้อมูลจริง: accepts_* flags เป็น null เกือบทั้งหมด → กรอง "true หรือ null (ไม่ระบุ)"
+  // เพื่อไม่ให้หลักสูตรหายทั้งคณะ (ถ้าอนาคต flag ถูกเซ็ต false ค่อยถูกกรองออก)
+  const q = db.from("programs")
     .select("id,major_name,major_clean,degree_name,program_type,tuition_fee,university_id,universities(name_th,campus_name)")
     .eq("faculty_id", facultyId)
-    .eq(trackFlag, true)
-    .limit(60);
+    .or(`${trackFlag}.is.null,${trackFlag}.eq.true`)
+    .order("major_name")
+    .limit(100);
   const { data, error } = await q;
   if (error) throw error;
   return data;
@@ -1097,6 +1101,7 @@ function render() {
   if (v === "news-page")    return void viewNews();
   if (v === "calendar")     return void viewCalendar();
   if (v === "calculator")   return void viewCalculator();
+  if (v === "career")       return void viewCareerPath();
   if (v === "profile")      return void viewProfileFull();   // BUG-2: async, not sync
   if (v === "settings")     return void viewSettings();      // BUG-2: async
 
@@ -1104,7 +1109,6 @@ function render() {
   if (v === "auth")         $app().innerHTML = viewAuth();
   else if (v === "forgot-password") $app().innerHTML = viewForgotPassword();
   else if (v === "reset-password")  $app().innerHTML = viewResetPassword();
-  else if (v === "career")  $app().innerHTML = viewCareerPath();
   else if (v === "create-path" || v === "create-path-flow") $app().innerHTML = viewDashboard();
   else if (v === "name-path") $app().innerHTML = viewNamePath();
   else if (v === "track")   $app().innerHTML = viewTrack();

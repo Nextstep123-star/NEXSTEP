@@ -267,49 +267,143 @@ async function viewCalendar() {
 }
 
 // ── Career Path ───────────────────────────────────────────────
-function viewCareerPath() {
-  const careers = [
-    { id:1, icon:"code", title:"วิศวกรซอฟต์แวร์", salary:"45K–120K/เดือน", demand:"สูงมาก", faculties:["IT","วิศวะ"], skills:["Programming","System Design","Cloud"] },
-    { id:2, icon:"health", title:"แพทย์", salary:"60K–200K/เดือน", demand:"สูง", faculties:["แพทย์"], skills:["Clinical","Research","Communication"] },
-    { id:3, icon:"scale", title:"ทนายความ / นักกฎหมาย", salary:"35K–150K/เดือน", demand:"ปานกลาง", faculties:["นิติ","รัฐศาสตร์"], skills:["Legal Analysis","Research","Advocacy"] },
-    { id:4, icon:"chart", title:"นักวิเคราะห์ข้อมูล", salary:"40K–100K/เดือน", demand:"สูงมาก", faculties:["IT","วิทยาศาสตร์","พาณิชย์"], skills:["Python/R","SQL","Statistics","ML"] },
-    { id:5, icon:"palette", title:"นักออกแบบ UX/UI", salary:"35K–90K/เดือน", demand:"สูง", faculties:["IT","ศิลปกรรม","นิเทศ"], skills:["Figma","Research","Prototyping"] },
-    { id:6, icon:"signal", title:"วิศวกรไฟฟ้า/สื่อสาร", salary:"40K–100K/เดือน", demand:"สูง", faculties:["วิศวะ"], skills:["Electronics","Telecom","Control Systems"] },
-  ];
-  const demandCls = { "สูงมาก":"bg-primary/20 text-primary", "สูง":"bg-tertiary/20 text-tertiary", "ปานกลาง":"bg-secondary/20 text-secondary" };
+// เลือกไอคอนตามชื่ออาชีพ
+function careerIcon(name) {
+  const n = name || "";
+  if (/แพทย์|สุขภาพ|พยาบาล|เภสัช|ทันต/.test(n)) return "health";
+  if (/กฎหมาย|ทนาย|นิติ/.test(n)) return "scale";
+  if (/การเงิน|ลงทุน|บัญชี|เศรษฐ|วิเคราะห์/.test(n)) return "chart";
+  if (/ออกแบบ|กราฟิก|UI|UX|ศิลป|ดีไซน์/.test(n)) return "palette";
+  if (/เว็บ|ซอฟต์แวร์|โปรแกรม|คอมพิวเตอร์|ข้อมูล|IT|เทคโนโลยี/.test(n)) return "code";
+  if (/วิศว|ไฟฟ้า|เครื่องกล/.test(n)) return "wrench";
+  return "target";
+}
 
-  const cards = careers.map(c => `
-    <div class="db-card p-5 cursor-pointer hover:border-primary/40 transition-colors">
-      <div class="flex items-start gap-3 mb-3">
-        <span class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">${sl(c.icon, { size: 26, color: "#c2d90f" })}</span>
-        <div class="flex-1 min-w-0">
-          <h3 class="font-display font-bold text-[16px] text-on-surface">${esc(c.title)}</h3>
-          <p class="font-mono text-[13px] text-primary mt-0.5">${esc(c.salary)}</p>
-        </div>
-        <span class="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${demandCls[c.demand]||""}">${esc(c.demand)}</span>
-      </div>
-      <div class="flex flex-wrap gap-1.5 mb-2">
-        ${c.skills.map(s=>`<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">${esc(s)}</span>`).join("")}
-      </div>
-      <p class="text-[12px] text-on-surface-variant">คณะที่เกี่ยวข้อง: ${c.faculties.join(", ")}</p>
-    </div>`).join("");
+// fallback (offline/DB ว่าง) — id:null = คลิกแล้วบอกให้ต่อเน็ต
+const CAREERS_FALLBACK = [
+  { id: null, career_name_th: "นักพัฒนาซอฟต์แวร์", base_salary_range: "45K–120K/เดือน", required_skills: ["Programming", "System Design", "Cloud"] },
+  { id: null, career_name_th: "แพทย์", base_salary_range: "60K–200K/เดือน", required_skills: ["Clinical", "Research"] },
+  { id: null, career_name_th: "ทนายความ / นักกฎหมาย", base_salary_range: "35K–150K/เดือน", required_skills: ["Legal Analysis", "Advocacy"] },
+  { id: null, career_name_th: "นักวิเคราะห์ข้อมูล", base_salary_range: "40K–100K/เดือน", required_skills: ["Python/R", "SQL", "Statistics"] },
+];
 
-  return dashShell(`
+// career_id → คณะที่เกี่ยวข้อง (curate เอง เพราะ program_career_junction ใน DB ไม่สื่อความหมาย)
+// faculty ids: 1 แพทย์ · 2 วิศวะ · 3 IT · 4 พาณิชย์/บัญชี · 5 นิเทศ · 6 อักษร · 7 นิติ · 8 รัฐศาสตร์ · 9 วิทย์ · 10 จิตวิทยา · 11 มนุษย์ · 13 ทันตะ · 14 เภสัช
+const CAREER_FACULTY = {
+  1: [3, 2],       // นักพัฒนาเว็บ/ซอฟต์แวร์
+  2: [3, 9, 2],    // นักวิทยาศาสตร์ข้อมูล
+  3: [3, 5],       // นักออกแบบกราฟิก/UI-UX
+  4: [7, 8],       // กฎหมาย/ทนาย
+  5: [4, 9],       // การเงิน/การลงทุน
+  6: [1, 13, 14],  // แพทย์/สุขภาพ
+};
+
+// สายอาชีพ — ดึงจาก careers + program_career_junction (คลิก → หลักสูตร → เส้นทาง)
+async function viewCareerPath() {
+  document.getElementById("app").innerHTML = dashShell(`
     <div class="flex items-center justify-between mb-5">
       <h1 class="font-display font-bold text-[22px] text-on-surface">สายอาชีพ</h1>
-      <button id="btn-new" class="tactile-button bg-primary-container text-on-primary font-display font-bold text-[13px] px-4 py-2 rounded-xl border-b-4 border-[#96a80a] flex items-center gap-2">
-        ${sl("add",{size:16})} สายของคุณ
-      </button>
     </div>
     <div class="db-card p-4 mb-4 flex items-center gap-3" style="background:rgba(194,217,15,.06);border-color:rgba(194,217,15,.2)">
-      ${sl("target",{size:20,cls:"text-primary shrink-0",color:"#c2d90f"})}
+      ${sl("target",{size:20,cls:"shrink-0",color:"#c2d90f"})}
       <div>
-        <div class="font-display font-bold text-[14px] text-on-surface">ยังไม่ได้เลือกสายอาชีพ</div>
-        <div class="text-[12px] text-on-surface-variant">เลือกอาชีพที่สนใจเพื่อดูเส้นทางสู่มหาวิทยาลัย</div>
+        <div class="font-display font-bold text-[14px] text-on-surface">เลือกอาชีพที่สนใจ</div>
+        <div class="text-[12px] text-on-surface-variant">แตะอาชีพเพื่อดูหลักสูตรและเส้นทางสู่มหาวิทยาลัย</div>
       </div>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${cards}</div>
+    <div id="career-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      ${[1,2,3,4].map(()=>`<div class="db-card p-5 animate-pulse h-32"></div>`).join("")}
+    </div>
+    ${detailPanelSkeleton()}
   `);
+  wireCommon();
+
+  let careers = [];
+  try {
+    const { data } = await db.from("careers")
+      .select("id,career_name_th,career_name_en,description,required_skills,base_salary_range")
+      .order("id");
+    careers = data || [];
+  } catch { }
+  if (!careers.length) careers = CAREERS_FALLBACK;
+
+  const listEl = document.getElementById("career-list");
+  if (!listEl) return;
+  listEl.innerHTML = careers.map((c, i) => {
+    const skills = c.required_skills || [];
+    return `<button data-career="${i}" class="text-left db-card p-5 hover:border-primary/40 transition-colors">
+      <div class="flex items-start gap-3 mb-3">
+        <span class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">${sl(careerIcon(c.career_name_th), { size: 26, color: "#c2d90f" })}</span>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-display font-bold text-[16px] text-on-surface leading-snug">${esc(c.career_name_th)}</h3>
+          ${c.base_salary_range ? `<p class="font-mono text-[13px] text-primary mt-0.5">${esc(c.base_salary_range)}</p>` : ""}
+        </div>
+        ${sl("arrow_right", { size: 16, color: "#9aa090", cls: "shrink-0 mt-1" })}
+      </div>
+      ${skills.length ? `<div class="flex flex-wrap gap-1.5">${skills.slice(0,4).map(s => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-variant text-on-surface-variant">${esc(s)}</span>`).join("")}</div>` : ""}
+    </button>`;
+  }).join("");
+
+  listEl.querySelectorAll("[data-career]").forEach(b => b.addEventListener("click", () => {
+    const c = careers[+b.dataset.career];
+    if (!c.id) { toast("โหมดออฟไลน์ — ต่ออินเทอร์เน็ตเพื่อดูคณะที่เชื่อมโยง"); return; }
+    openCareerFaculties(c);
+  }));
+}
+
+// เปิดแผง "คณะที่พาสู่อาชีพนี้" (curate จาก CAREER_FACULTY) → เลือกคณะ → หลักสูตรจริง → เส้นทาง
+async function openCareerFaculties(career) {
+  const body = document.getElementById("detail-body");
+  const panel = document.getElementById("detail-panel");
+  const scrim = document.getElementById("panel-scrim");
+  if (!body || !panel || !scrim) return;
+  const close = () => { panel.classList.add("hidden-panel"); scrim.classList.add("opacity-0", "pointer-events-none"); };
+  body.innerHTML = `<div class="flex justify-center py-10"><div class="cook-spinner"></div></div>`;
+  panel.classList.remove("hidden-panel");
+  scrim.classList.remove("opacity-0", "pointer-events-none");
+  scrim.onclick = close;
+
+  // ตัด replacement char (ม. mojibake ใน DB บางแถว)
+  const desc = (career.description || "").replace(/�/g, "").trim();
+
+  try {
+    const facIds = CAREER_FACULTY[career.id] || [];
+    let facs = [];
+    if (facIds.length) {
+      const { data } = await db.from("faculties").select("id,name_th").in("id", facIds);
+      facs = facIds.map(id => (data || []).find(f => f.id === id)).filter(Boolean); // คงลำดับ
+    }
+    body.innerHTML = `
+      <div class="flex items-center gap-3 mb-1">
+        <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">${sl(careerIcon(career.career_name_th), { size: 24, color: "#c2d90f" })}</div>
+        <div class="min-w-0">
+          <h3 class="font-display font-extrabold text-[19px] text-on-surface leading-snug">${esc(career.career_name_th)}</h3>
+          ${career.base_salary_range ? `<div class="text-[12px] font-mono text-primary">${esc(career.base_salary_range)}</div>` : ""}
+        </div>
+      </div>
+      ${desc ? `<p class="text-[13px] text-on-surface-variant my-2 leading-relaxed">${esc(desc)}</p>` : `<div class="mb-2"></div>`}
+      <div class="font-display font-bold text-[13px] text-on-surface-variant mb-2 mt-1">คณะที่พาสู่อาชีพนี้ — แตะเพื่อดูหลักสูตรและเส้นทาง</div>
+      <div class="space-y-2">
+        ${facs.length ? facs.map(f => `
+          <button data-cfac="${f.id}" data-cfacname="${esc(f.name_th)}" class="w-full text-left flex items-center gap-3 db-card p-3 hover:border-primary/40 transition-colors">
+            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">${sl("school", { size: 20, color: "#c2d90f" })}</div>
+            <div class="flex-1 font-bold text-[15px] text-on-surface">${esc(f.name_th)}</div>
+            ${sl("arrow_right", { size: 16, color: "#9aa090" })}
+          </button>`).join("") : `<div class="text-center py-6 text-on-surface-variant text-[14px]">ยังไม่มีคณะแนะนำสำหรับอาชีพนี้</div>`}
+      </div>
+      <button id="panel-close" class="tactile-button w-full mt-4 bg-surface-container-high text-on-surface font-bold rounded-xl py-3 border-b-4 border-surface-variant">ปิด</button>`;
+    document.getElementById("panel-close").onclick = close;
+    body.querySelectorAll("[data-cfac]").forEach(b => b.addEventListener("click", () => {
+      close();
+      // ตั้ง flow แล้วไปหน้าเลือกหลักสูตรจริงของคณะนั้น → เลือก → roadmap
+      state.flow = { name: career.career_name_th, track: null, facultyId: +b.dataset.cfac, facultyName: b.dataset.cfacname, program: null };
+      go("programs");
+    }));
+  } catch {
+    body.innerHTML = `<div class="text-center py-8 text-on-surface-variant">โหลดไม่สำเร็จ ลองใหม่อีกครั้ง</div>
+      <button id="panel-close" class="tactile-button w-full mt-2 bg-surface-container-high text-on-surface font-bold rounded-xl py-3 border-b-4 border-surface-variant">ปิด</button>`;
+    document.getElementById("panel-close").onclick = close;
+  }
 }
 
 // ── Universities ──────────────────────────────────────────────
