@@ -432,11 +432,15 @@ async function loadRoadmapIntoContainer(path) {
     container.innerHTML = `
       <div class="db-card p-4 mb-4">
         <div class="flex items-start gap-3 mb-3">
-          <div class="flex-1">
+          <div class="flex-1 min-w-0">
             <h2 class="font-display font-bold text-[16px] text-on-surface">${esc(path.name)}</h2>
             <p class="text-[12px] text-on-surface-variant">${esc(path.programName||"")}${path.uni?" · "+esc(path.uni):""}</p>
           </div>
-          <span class="shrink-0 text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">ขั้น 1/${total}</span>
+          <div class="shrink-0 flex items-center gap-2">
+            <span class="text-[12px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-2 py-1">ขั้น 1/${total}</span>
+            ${getMain() !== path.id ? `<button id="rm-main" class="p-2 rounded-lg border border-surface-variant text-on-surface-variant hover:border-primary hover:text-primary transition-colors" title="ตั้งเป็นเส้นทางหลัก">${sl("heart",{size:16})}</button>` : ""}
+            <button id="rm-path" class="flex items-center gap-1 p-2 rounded-lg border border-surface-variant text-on-surface-variant hover:border-error hover:text-error transition-colors" title="ลบเส้นทาง">${icon("delete",{cls:"text-[18px]"})}</button>
+          </div>
         </div>
         <div class="h-2 rounded-full bg-surface-variant overflow-hidden">
           <div class="h-full rounded-full bg-primary" style="width:${Math.round((1/total)*100)}%"></div>
@@ -452,6 +456,34 @@ async function loadRoadmapIntoContainer(path) {
       ${detailPanelSkeleton()}`;
 
     container.querySelectorAll("[data-round]").forEach(b => b.addEventListener("click", () => openRound(rounds[+b.dataset.round])));
+
+    // ตั้งเป็นเส้นทางหลัก
+    container.querySelector("#rm-main")?.addEventListener("click", () => setMainPath(path.id));
+
+    // ลบเส้นทาง — ยืนยัน 2 จังหวะ (กันลบพลาด)
+    const rmBtn = container.querySelector("#rm-path");
+    if (rmBtn) {
+      let armed = false, tm;
+      const reset = () => {
+        armed = false;
+        rmBtn.innerHTML = icon("delete", { cls: "text-[18px]" });
+        rmBtn.classList.remove("border-error", "text-error");
+        rmBtn.classList.add("border-surface-variant", "text-on-surface-variant");
+      };
+      rmBtn.addEventListener("click", () => {
+        if (!armed) {
+          armed = true;
+          rmBtn.innerHTML = `${icon("delete", { cls: "text-[18px]" })}<span class="text-[12px] font-bold whitespace-nowrap">กดอีกครั้งเพื่อลบ</span>`;
+          rmBtn.classList.remove("border-surface-variant", "text-on-surface-variant");
+          rmBtn.classList.add("border-error", "text-error");
+          clearTimeout(tm);
+          tm = setTimeout(reset, 3000);
+          return;
+        }
+        clearTimeout(tm);
+        deletePath(path.id);
+      });
+    }
   } catch (e) {
     container.innerHTML = `<div class="text-center py-8 text-on-surface-variant">โหลดไม่สำเร็จ ลองใหม่อีกครั้ง</div>`;
   }

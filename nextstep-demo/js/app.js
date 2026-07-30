@@ -1237,6 +1237,25 @@ function openSavedPath(p) {
   go("cooking");
 }
 
+// ลบเส้นทาง (localStorage; Phase 3 → user_paths). ถ้าลบเส้นทางหลัก → ตั้งอันแรกที่เหลือเป็นหลัก
+function deletePath(id) {
+  const paths = getPaths().filter((p) => p.id !== id);
+  savePaths(paths);
+  if (getMain() === id) {
+    if (paths.length) setMain(paths[0].id);
+    else { try { localStorage.removeItem(LS_MAIN); } catch {} }
+  }
+  toast("ลบเส้นทางแล้ว");
+  go("roadmap-list"); // re-render (ถ้าไม่เหลือ → viewRoadmapList พาไปสร้างใหม่)
+}
+
+// ตั้งเส้นทางหลัก
+function setMainPath(id) {
+  setMain(id);
+  toast("ตั้งเป็นเส้นทางหลักแล้ว");
+  go("roadmap-list");
+}
+
 /* Boot — restore session, then route by onboarded + handle password recovery */
 async function boot() {
   // admin/demo session (client-only) — คืนสภาพก่อน แล้วเข้าแอปเลย
