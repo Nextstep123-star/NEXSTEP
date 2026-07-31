@@ -514,7 +514,7 @@ async function loadRoadmapIntoContainer(path) {
         <div class="w-7 h-7 rounded-full bg-tertiary/20 flex items-center justify-center font-mono font-bold text-[12px] text-tertiary">${r.round_number||"?"}</div>
         <div class="text-left">
           <div class="font-bold text-[12px] text-on-surface whitespace-nowrap">${esc(r.round_label||"รอบ "+r.round_number)}</div>
-          <div class="text-[11px] text-on-surface-variant">${r.quota?"รับ ~"+r.quota+" คน":"ดูรายละเอียด"}</div>
+          <div class="text-[11px] text-on-surface-variant whitespace-nowrap">${r.quota?"รับรวม ~"+r.quota+" คน":"ดูรายละเอียด"}${r.projects&&r.projects.length>1?" · "+r.projects.length+" โครงการ":""}</div>
         </div>
       </button>`).join("");
 

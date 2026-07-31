@@ -502,6 +502,21 @@ function roundShortLabel(r) {
   return map[r.round_number] || (r.round_label || ("รอบ " + (r.round_number ?? "?")));
 }
 
+/* รวมหลายโครงการในรอบเดียวกัน → 1 รายการต่อรอบ (quota รวม + list โครงการย่อย) */
+function aggregateRounds(rounds) {
+  const byNum = {};
+  (rounds || []).forEach((r) => {
+    const n = r.round_number;
+    if (n == null) return;
+    if (!byNum[n]) byNum[n] = { round_number: n, round_label: roundShortLabel(r), quota: 0, minGpax: null, projects: [] };
+    const g = byNum[n];
+    if (r.quota != null) g.quota += Number(r.quota) || 0;
+    if (r.min_gpax != null && (g.minGpax == null || r.min_gpax < g.minGpax)) g.minGpax = r.min_gpax;
+    g.projects.push({ project_name: r.project_name, quota: r.quota, scores: r.scores, min_gpax: r.min_gpax, min_total_score: r.min_total_score });
+  });
+  return Object.values(byNum).sort((a, b) => a.round_number - b.round_number);
+}
+
 /* สร้างเส้นทางเตรียมตัว "เฉพาะหลักสูตร" จากรอบที่เปิดรับจริง — เปิดกี่รอบก็เตรียมครบทุกรอบ */
 function buildRoadmapFromRounds(rounds, ctx) {
   const uniq = dedupeRounds(rounds);
@@ -540,7 +555,7 @@ function buildRoadmapFromRounds(rounds, ctx) {
 async function getProgramRoadmap(programId, uni) {
   try {
     const rawRounds = await fetchRounds(programId);
-    const rounds = dedupeRounds(rawRounds);
+    const rounds = aggregateRounds(rawRounds);   // 1 รายการต่อรอบ (quota รวม + โครงการย่อย)
     const built = buildRoadmapFromRounds(rawRounds, { uni });
     if (built && built.length) return { rounds, roadmap: built };
     const roadmap = await fetchRoadmap(programId);
@@ -1128,13 +1143,13 @@ function viewRoadmap() {
   const pathId = state.flow.pathId;
   const p = roadmapProgress(roadmap, pathId);
 
-  // TCAS round pills → open detail panel
+  // TCAS round pills → open detail panel (1 pill ต่อรอบ · quota รวม + จำนวนโครงการ)
   const roundPills = rounds.length ? rounds.map((r, i) => `
     <button data-round="${i}" class="tactile-button shrink-0 flex items-center gap-sm bg-surface-container-lowest border-2 border-surface-variant rounded-xl px-md py-3 shadow-[0_3px_0_#0d0f08]">
-      <div class="w-8 h-8 rounded-full bg-tertiary-container/40 flex items-center justify-center font-headline font-extrabold text-tertiary">${r.round_number || "?"}</div>
+      <div class="w-8 h-8 rounded-full bg-tertiary-container/40 flex items-center justify-center font-headline font-extrabold text-tertiary shrink-0">${r.round_number || "?"}</div>
       <div class="text-left">
         <div class="font-bold text-[13px] text-on-surface whitespace-nowrap">${esc(r.round_label || "รอบ " + r.round_number)}</div>
-        <div class="text-[11px] text-on-surface-variant">${r.quota ? "รับ ~" + r.quota + " คน" : "ดูรายละเอียด"}</div>
+        <div class="text-[11px] text-on-surface-variant whitespace-nowrap">${r.quota ? "รับรวม ~" + r.quota + " คน" : "ดูรายละเอียด"}${r.projects && r.projects.length > 1 ? " · " + r.projects.length + " โครงการ" : ""}</div>
       </div>
     </button>`).join("")
     : `<div class="text-on-surface-variant text-[14px] px-1">ยังไม่มีข้อมูลรอบรับสมัครสำหรับหลักสูตรนี้</div>`;
@@ -1338,31 +1353,35 @@ async function openRoadmapStep(step, ctx) {
 }
 
 function openRound(r) {
-  const scores = r.scores || {};
-  const hasScores = Object.keys(scores).length > 0;
-  const breakdown = hasScores
-    ? scoreBreakdownGroupsHTML(scores)
-    : `<p class="text-on-surface-variant text-[14px]">รอบนี้ไม่ระบุสัดส่วนคะแนนกลาง (มักพิจารณาจากแฟ้ม/สัมภาษณ์ หรือดูประกาศของหลักสูตร)</p>`;
+  // รองรับทั้งรอบที่ aggregate (มี .projects) และแถวเดี่ยว (มี .scores)
+  const projects = (r.projects && r.projects.length)
+    ? r.projects
+    : [{ project_name: r.project_name, quota: r.quota, scores: r.scores, min_gpax: r.min_gpax, min_total_score: r.min_total_score }];
+  const totalQuota = r.quota != null ? r.quota : projects.reduce((s, p) => s + (Number(p.quota) || 0), 0);
 
-  const meta = [];
-  if (r.quota) meta.push(`${icon("groups", { cls: "text-[18px]" })} รับ ~${r.quota} คน`);
-  if (r.min_gpax) meta.push(`${icon("grade", { cls: "text-[18px]" })} GPAX ขั้นต่ำ ${r.min_gpax}`);
-  if (r.min_total_score) meta.push(`${icon("scoreboard", { cls: "text-[18px]" })} คะแนนรวมขั้นต่ำ ${r.min_total_score}`);
+  const projHTML = projects.map((pj, idx) => {
+    const hasS = pj.scores && Object.keys(pj.scores).length > 0;
+    const sub = [];
+    if (pj.quota) sub.push(`รับ ~${pj.quota} คน`);
+    if (pj.min_gpax) sub.push(`GPAX ขั้นต่ำ ${pj.min_gpax}`);
+    if (pj.min_total_score) sub.push(`คะแนนรวมขั้นต่ำ ${pj.min_total_score}`);
+    return `<div class="bg-surface-container-low rounded-xl p-3 mb-2 border border-surface-variant">
+      <div class="font-bold text-[14px] text-on-surface leading-snug mb-1">${esc(pj.project_name || "โครงการที่ " + (idx + 1))}</div>
+      ${sub.length ? `<div class="text-[12px] text-on-surface-variant mb-2">${sub.join(" · ")}</div>` : ""}
+      ${hasS ? scoreBreakdownGroupsHTML(pj.scores) : `<div class="text-[12px] text-on-surface-variant">ไม่ระบุสัดส่วนคะแนนกลาง (พิจารณาจากแฟ้ม/สัมภาษณ์ หรือดูประกาศของหลักสูตร)</div>`}
+    </div>`;
+  }).join("");
 
   document.getElementById("detail-body").innerHTML = `
     <div class="flex items-center gap-sm mb-1">
-      <div class="w-10 h-10 rounded-full bg-tertiary-container/40 flex items-center justify-center font-headline font-extrabold text-tertiary text-lg">${r.round_number || "?"}</div>
-      <h3 class="font-display font-extrabold text-[20px] text-on-surface">${esc(r.round_label || "รอบ " + r.round_number)}</h3>
+      <div class="w-10 h-10 rounded-full bg-tertiary-container/40 flex items-center justify-center font-headline font-extrabold text-tertiary text-lg shrink-0">${r.round_number || "?"}</div>
+      <div class="min-w-0">
+        <h3 class="font-display font-extrabold text-[20px] text-on-surface leading-snug">${esc(r.round_label || "รอบ " + r.round_number)}</h3>
+        <div class="text-[12px] text-on-surface-variant">${totalQuota ? `รับรวม ~${totalQuota} คน · ` : ""}${projects.length} โครงการ</div>
+      </div>
     </div>
-    ${r.project_name ? `<p class="text-on-surface-variant text-[14px] mb-md">${esc(r.project_name)}</p>` : `<div class="mb-md"></div>`}
-
-    <div class="mb-lg">
-      <div class="font-headline font-bold text-[14px] text-on-surface-variant mb-sm">สัดส่วนคะแนน & น้ำหนัก (รอบนี้)</div>
-      ${breakdown}
-    </div>
-
-    ${meta.length ? `<div class="grid grid-cols-1 gap-2 text-[14px] text-on-surface font-medium">${meta.map((m) => `<div class="flex items-center gap-2 bg-surface-container-low rounded-lg px-3 py-2">${m}</div>`).join("")}</div>` : ""}
-
+    <div class="mt-3 mb-2 font-headline font-bold text-[14px] text-on-surface-variant">โครงการในรอบนี้ & สัดส่วนคะแนน</div>
+    <div>${projHTML}</div>
     <button id="panel-close" class="tactile-button w-full mt-lg bg-surface-container-high text-on-surface font-bold rounded-xl py-3 border-b-4 border-surface-variant">ปิด</button>
   `;
   const panel = document.getElementById("detail-panel");
