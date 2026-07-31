@@ -203,6 +203,7 @@ function roadmapTimelineHTML(roadmap, pathId) {
     const header = (s.roundFirst && s.round_label) ? `
       <div class="flex items-center gap-2 ${i === 0 ? "" : "mt-5"} mb-3 relative z-10">
         <span class="text-[12px] font-display font-bold text-tertiary bg-tertiary/15 border border-tertiary/30 rounded-full px-3 py-1">${esc(s.round_label)}</span>
+        ${s.standard ? `<span class="text-[10px] font-bold text-on-surface-variant bg-surface-variant/60 rounded-full px-2 py-0.5">แนวทางเตรียมตัว</span>` : ""}
         <div class="flex-1 h-px bg-surface-variant"></div>
       </div>` : "";
     return `
@@ -517,6 +518,19 @@ function aggregateRounds(rounds) {
   return Object.values(byNum).sort((a, b) => a.round_number - b.round_number);
 }
 
+/* ให้ครบ 3 รอบมาตรฐานทุกหลักสูตร (Portfolio/โควตา/Admission) — รอบที่ DB ไม่มี = แนวทางเตรียมตัว */
+function ensureThreeRounds(agg) {
+  const byNum = {};
+  (agg || []).forEach((r) => { byNum[r.round_number] = r; });
+  const out = [];
+  for (const n of [1, 2, 3]) {
+    out.push(byNum[n] || { round_number: n, round_label: roundShortLabel({ round_number: n }), quota: 0, minGpax: null, projects: [], standard: true });
+  }
+  // รอบพิเศษที่มีจริงใน DB (เช่น รอบ 4 Direct)
+  (agg || []).filter((r) => r.round_number > 3).sort((a, b) => a.round_number - b.round_number).forEach((r) => out.push(r));
+  return out;
+}
+
 /* สร้างเส้นทางเตรียมตัว "เฉพาะหลักสูตร" จากรอบที่เปิดรับจริง — เปิดกี่รอบก็เตรียมครบทุกรอบ */
 function buildRoadmapFromRounds(rounds, ctx) {
   const uniq = dedupeRounds(rounds);
@@ -527,7 +541,7 @@ function buildRoadmapFromRounds(rounds, ctx) {
     const label = roundShortLabel(r);
     const rn = r.round_number;
     const push = (title, description, period, first = false) =>
-      steps.push({ step_number: n++, title, description, target_period: period, round_number: rn, round_label: label, roundFirst: first });
+      steps.push({ step_number: n++, title, description, target_period: period, round_number: rn, round_label: label, roundFirst: first, standard: !!r.standard });
 
     if (rn === 1) {
       push("เตรียมแฟ้มสะสมผลงาน (Portfolio)", "รวบรวมผลงานวิชาการ กิจกรรม การแข่งขัน และเกียรติบัตรที่เกี่ยวข้องกับสาขา จัดพอร์ตให้โดดเด่น", "ม.4–ม.6", true);
@@ -555,10 +569,8 @@ function buildRoadmapFromRounds(rounds, ctx) {
 async function getProgramRoadmap(programId, uni) {
   try {
     const rawRounds = await fetchRounds(programId);
-    const rounds = aggregateRounds(rawRounds);   // 1 รายการต่อรอบ (quota รวม + โครงการย่อย)
-    const built = buildRoadmapFromRounds(rawRounds, { uni });
-    if (built && built.length) return { rounds, roadmap: built };
-    const roadmap = await fetchRoadmap(programId);
+    const rounds = ensureThreeRounds(aggregateRounds(rawRounds)); // ครบ 3 รอบเสมอ (+ รอบพิเศษถ้ามี)
+    const roadmap = buildRoadmapFromRounds(rounds, { uni });
     return { rounds, roadmap: roadmap || [] };
   } catch { return { rounds: [], roadmap: [] }; }
 }
@@ -1149,7 +1161,7 @@ function viewRoadmap() {
       <div class="w-8 h-8 rounded-full bg-tertiary-container/40 flex items-center justify-center font-headline font-extrabold text-tertiary shrink-0">${r.round_number || "?"}</div>
       <div class="text-left">
         <div class="font-bold text-[13px] text-on-surface whitespace-nowrap">${esc(r.round_label || "รอบ " + r.round_number)}</div>
-        <div class="text-[11px] text-on-surface-variant whitespace-nowrap">${r.quota ? "รับรวม ~" + r.quota + " คน" : "ดูรายละเอียด"}${r.projects && r.projects.length > 1 ? " · " + r.projects.length + " โครงการ" : ""}</div>
+        <div class="text-[11px] text-on-surface-variant whitespace-nowrap">${r.standard ? "แนวทางเตรียมตัว" : (r.quota ? "รับรวม ~" + r.quota + " คน" : "ดูรายละเอียด") + (r.projects && r.projects.length > 1 ? " · " + r.projects.length + " โครงการ" : "")}</div>
       </div>
     </button>`).join("")
     : `<div class="text-on-surface-variant text-[14px] px-1">ยังไม่มีข้อมูลรอบรับสมัครสำหรับหลักสูตรนี้</div>`;
@@ -1354,12 +1366,18 @@ async function openRoadmapStep(step, ctx) {
 
 function openRound(r) {
   // รองรับทั้งรอบที่ aggregate (มี .projects) และแถวเดี่ยว (มี .scores)
-  const projects = (r.projects && r.projects.length)
+  const projectsRaw = (r.projects && r.projects.length)
     ? r.projects
-    : [{ project_name: r.project_name, quota: r.quota, scores: r.scores, min_gpax: r.min_gpax, min_total_score: r.min_total_score }];
+    : (r.scores !== undefined || r.project_name || r.quota) ? [{ project_name: r.project_name, quota: r.quota, scores: r.scores, min_gpax: r.min_gpax, min_total_score: r.min_total_score }] : [];
+  const projects = projectsRaw.filter((p) => p.project_name || p.quota || (p.scores && Object.keys(p.scores).length));
+  const isStandard = r.standard || projects.length === 0;
   const totalQuota = r.quota != null ? r.quota : projects.reduce((s, p) => s + (Number(p.quota) || 0), 0);
 
-  const projHTML = projects.map((pj, idx) => {
+  const projHTML = isStandard
+    ? `<div class="bg-surface-container-low rounded-xl p-4 border border-surface-variant text-[13px] text-on-surface-variant leading-relaxed">
+         ${sl("info",{size:15,color:"#88ceff",cls:"inline align-middle"})} หลักสูตรนี้ยังไม่มีข้อมูลการเปิดรับ<span class="font-bold text-on-surface"> ${esc(r.round_label || "รอบนี้")}</span> ในระบบของเรา — โปรดตรวจสอบว่าเปิดรับจริงหรือไม่ที่ mytcas.com<br/>เส้นทางด้านล่างเป็น<span class="font-bold text-on-surface">แนวทางเตรียมตัวทั่วไป</span>สำหรับรอบนี้ เผื่อคุณอยากลุ้นหลายรอบ
+       </div>`
+    : projects.map((pj, idx) => {
     const hasS = pj.scores && Object.keys(pj.scores).length > 0;
     const sub = [];
     if (pj.quota) sub.push(`รับ ~${pj.quota} คน`);
@@ -1377,10 +1395,10 @@ function openRound(r) {
       <div class="w-10 h-10 rounded-full bg-tertiary-container/40 flex items-center justify-center font-headline font-extrabold text-tertiary text-lg shrink-0">${r.round_number || "?"}</div>
       <div class="min-w-0">
         <h3 class="font-display font-extrabold text-[20px] text-on-surface leading-snug">${esc(r.round_label || "รอบ " + r.round_number)}</h3>
-        <div class="text-[12px] text-on-surface-variant">${totalQuota ? `รับรวม ~${totalQuota} คน · ` : ""}${projects.length} โครงการ</div>
+        <div class="text-[12px] text-on-surface-variant">${isStandard ? "แนวทางเตรียมตัว (ตรวจสอบการเปิดรับที่ mytcas.com)" : `${totalQuota ? `รับรวม ~${totalQuota} คน · ` : ""}${projects.length} โครงการ`}</div>
       </div>
     </div>
-    <div class="mt-3 mb-2 font-headline font-bold text-[14px] text-on-surface-variant">โครงการในรอบนี้ & สัดส่วนคะแนน</div>
+    <div class="mt-3 mb-2 font-headline font-bold text-[14px] text-on-surface-variant">${isStandard ? "เกี่ยวกับรอบนี้" : "โครงการในรอบนี้ & สัดส่วนคะแนน"}</div>
     <div>${projHTML}</div>
     <button id="panel-close" class="tactile-button w-full mt-lg bg-surface-container-high text-on-surface font-bold rounded-xl py-3 border-b-4 border-surface-variant">ปิด</button>
   `;
