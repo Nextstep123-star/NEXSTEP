@@ -556,7 +556,7 @@ async function loadRoadmapIntoContainer(path) {
       ${detailPanelSkeleton()}`;
 
     container.querySelectorAll("[data-round]").forEach(b => b.addEventListener("click", () => openRound(rounds[+b.dataset.round])));
-    wireRoadmapTimeline(path.id, roadmap);
+    wireRoadmapTimeline(path.id, roadmap, { facultyId: path.facultyId, uni: path.uni, programId: path.programId });
     wireWeightsToggle(path.programId, path.facultyId);
 
     // ตั้งเป็นเส้นทางหลัก

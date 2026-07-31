@@ -205,32 +205,42 @@ function roadmapTimelineHTML(roadmap, pathId) {
           class="w-12 h-12 rounded-full ${dotBg} border-2 flex items-center justify-center shadow-[0_4px_0_${dotShadow}] z-10 shrink-0 mt-1 ${current && !done ? "pulse-animation" : ""} transition-all">
           ${done ? icon("check", { fill: true, cls: "text-on-primary" }) : current ? icon("play_arrow", { fill: true, cls: "text-on-primary" }) : `<span class="font-headline font-extrabold text-on-surface-variant">${s.step_number}</span>`}
         </button>
-        <div class="flex-1 min-w-0 bg-surface-container-lowest border-2 ${cardBorder} rounded-xl p-md shadow-[0_4px_0_#0d0f08]">
+        <div data-detail="${s.step_number}" role="button" tabindex="0" class="flex-1 min-w-0 bg-surface-container-lowest border-2 ${cardBorder} rounded-xl p-md shadow-[0_4px_0_#0d0f08] cursor-pointer">
           <div class="flex items-center justify-between gap-sm">
             <h3 class="font-headline font-bold text-[16px] ${done || current ? "text-primary" : "text-on-surface"}">${esc(s.title)}</h3>
             ${s.target_period ? `<span class="shrink-0 text-[11px] font-bold text-secondary bg-secondary-fixed/40 rounded-full px-2 py-0.5">${esc(s.target_period)}</span>` : ""}
           </div>
           ${s.description ? `<p class="text-[14px] text-on-surface-variant mt-1 leading-relaxed">${esc(s.description)}</p>` : ""}
-          <button data-step="${s.step_number}" class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold rounded-lg px-3 py-1.5 border-2 transition-colors ${done ? "border-primary/50 text-primary bg-primary/10" : "border-surface-variant text-on-surface-variant hover:border-primary hover:text-primary"}">
-            ${done ? icon("check", { cls: "text-[16px] align-middle" }) + " ทำเสร็จแล้ว" : "ทำขั้นตอนนี้เสร็จ"}
-          </button>
+          <div class="flex items-center justify-between gap-2 mt-3 flex-wrap">
+            <button data-step="${s.step_number}" class="inline-flex items-center gap-1.5 text-[13px] font-bold rounded-lg px-3 py-1.5 border-2 transition-colors ${done ? "border-primary/50 text-primary bg-primary/10" : "border-surface-variant text-on-surface-variant hover:border-primary hover:text-primary"}">
+              ${done ? icon("check", { cls: "text-[16px] align-middle" }) + " ทำเสร็จแล้ว" : "ทำขั้นตอนนี้เสร็จ"}
+            </button>
+            <span class="text-[12px] font-bold text-primary flex items-center gap-0.5 shrink-0">ดูรายละเอียด ${sl("arrow_right", { size: 13, color: "#c2d90f" })}</span>
+          </div>
         </div>
       </div>`;
   }).join("");
 }
 
-/* wire ปุ่มในไทม์ไลน์ + อัปเดต progress (badge/bar) — เรียกซ้ำได้หลัง re-render */
-function wireRoadmapTimeline(pathId, roadmap, timelineId = "rm-timeline") {
+/* wire ปุ่มในไทม์ไลน์ + อัปเดต progress + คลิก card ดูรายละเอียด — เรียกซ้ำได้หลัง re-render */
+function wireRoadmapTimeline(pathId, roadmap, ctx = {}, timelineId = "rm-timeline") {
   const el = document.getElementById(timelineId);
   if (!el) return;
-  el.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => {
+  // ปุ่มวงกลม/ปุ่ม "ทำเสร็จ" → toggle (stopPropagation กันไปเปิด detail)
+  el.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
     const before = roadmapProgress(roadmap, pathId).done;
     toggleStep(pathId, +b.dataset.step);
     el.innerHTML = roadmapTimelineHTML(roadmap, pathId);
-    wireRoadmapTimeline(pathId, roadmap, timelineId);
+    wireRoadmapTimeline(pathId, roadmap, ctx, timelineId);
     const p = roadmapProgress(roadmap, pathId);
     updateRoadmapProgress(pathId, roadmap);
     if (p.done === p.total && before < p.total) toast("เยี่ยมมาก! ทำครบทุกขั้นตอนแล้ว 🎉");
+  }));
+  // คลิกตัว card → เปิดรายละเอียดเชิงลึก
+  el.querySelectorAll("[data-detail]").forEach((b) => b.addEventListener("click", () => {
+    const s = roadmap.find((x) => x.step_number === +b.dataset.detail);
+    if (s) openRoadmapStep(s, ctx);
   }));
 }
 function updateRoadmapProgress(pathId, roadmap) {
@@ -1118,6 +1128,148 @@ function detailPanelSkeleton() {
       </div>
     </div>`;
 }
+/* ============================================================
+   Roadmap step detail (คลิก card → รายละเอียดเชิงลึก + ลิงก์)
+   ============================================================ */
+const MYTCAS_STUDENT = "https://student.mytcas.com";
+const MYTCAS_WWW = "https://www.mytcas.com";
+const uniSearchUrl = (uni, q) => "https://www.google.com/search?q=" + encodeURIComponent(((uni || "") + " " + q).trim());
+const _tcas70FacCache = {};
+
+// ผลงานแนะนำสำหรับพอร์ต ตามคณะ (คีย์ = TCAS70 faculty key)
+const PORTFOLIO_TIPS = {
+  med: ["ค่าย/โครงงานวิทยาศาสตร์สุขภาพ ชีววิทยา เคมี", "จิตอาสาโรงพยาบาล/สาธารณสุข/ชุมชน", "เกียรติบัตรแข่งชีววิทยา–เคมีโอลิมปิก", "งานวิจัย/โครงงานเกี่ยวกับสุขภาพ"],
+  dent: ["โครงงานวิทย์สุขภาพ/ชีววิทยา", "จิตอาสาทันตกรรม/สาธารณสุข", "ผลงานที่ใช้ความละเอียด–งานฝีมือ (สื่อถึงทักษะมือ)", "เกียรติบัตรวิทยาศาสตร์"],
+  pharm: ["โครงงานเคมี/ชีววิทยา", "ค่ายวิทยาศาสตร์", "จิตอาสาด้านสุขภาพ/ร้านยา", "เกียรติบัตรเคมีโอลิมปิก"],
+  nurse: ["จิตอาสาโรงพยาบาล/ดูแลผู้ป่วย–ผู้สูงอายุ", "โครงงานสุขภาพชุมชน", "เกียรติบัตรชีววิทยา", "กิจกรรมช่วยเหลือสังคม"],
+  vet: ["จิตอาสา/ดูแลสัตว์ ปศุสัตว์", "โครงงานชีววิทยา/สัตวศาสตร์", "ค่ายวิทยาศาสตร์", "เกียรติบัตรชีววิทยา"],
+  eng: ["แข่งขันหุ่นยนต์/สิ่งประดิษฐ์/STEM", "โครงงานวิศวกรรม–นวัตกรรม", "ค่ายวิศวะ", "เกียรติบัตรคณิต–ฟิสิกส์โอลิมปิก"],
+  compsci: ["แข่งเขียนโปรแกรม/แฮกกาธอน", "โปรเจกต์เว็บ/แอป/เกม (แนบ GitHub)", "เกียรติบัตรคอมพิวเตอร์โอลิมปิก", "คอร์สออนไลน์ + ใบรับรอง"],
+  sci: ["โครงงานวิทยาศาสตร์", "ค่ายวิทย์/โอลิมปิกวิชาการ", "งานวิจัยระดับโรงเรียน", "เกียรติบัตรวิชาการ"],
+  arch: ["พอร์ตงานออกแบบ/สเก็ตช์/โมเดล", "ผลงานศิลปะ–สถาปัตย์", "ค่ายสถาปัตย์", "รางวัลประกวดออกแบบ"],
+  account: ["โครงงาน/แผนธุรกิจ", "แข่งตอบปัญหาเศรษฐศาสตร์/บัญชี", "กิจกรรมผู้นำ/สหกรณ์โรงเรียน", "คอร์สการเงิน + ใบรับรอง"],
+  econ: ["โครงงานเศรษฐศาสตร์/ธุรกิจ", "แข่งตอบปัญหาเศรษฐศาสตร์", "กิจกรรมวิเคราะห์ข้อมูล", "คอร์สออนไลน์เศรษฐศาสตร์"],
+  law: ["โต้วาที/ตอบปัญหากฎหมาย", "ศาลจำลอง (Moot court)", "กิจกรรมสภานักเรียน", "เรียงความประเด็นสังคม–กฎหมาย"],
+  polsci: ["กิจกรรมสภานักเรียน/ผู้นำ", "จำลองสหประชาชาติ (MUN)/โต้วาที", "จิตอาสาชุมชน", "เรียงความประเด็นสังคม"],
+  arts: ["ผลงานเขียน/แปล/วรรณกรรม", "แข่งภาษา/สุนทรพจน์", "ชมรมวรรณศิลป์", "เกียรติบัตรภาษา"],
+  comm: ["ผลงานสื่อ: คลิป/ถ่ายภาพ/กราฟิก", "เขียนข่าว/บทความ/ดูแลเพจ", "กิจกรรมประชาสัมพันธ์โรงเรียน", "รางวัลสื่อ/หนังสั้น"],
+  edu: ["จิตอาสาสอน/ติวน้อง", "ค่ายอาสาพัฒนา", "กิจกรรมครูผู้ช่วย", "สื่อการสอนที่ทำเอง"],
+  psych: ["จิตอาสา/ให้คำปรึกษาเพื่อน", "โครงงานพฤติกรรม/สังคม", "คอร์สจิตวิทยาออนไลน์", "ชมรมแนะแนว"],
+  fineart: ["พอร์ตผลงานศิลปะ/ออกแบบ", "ประกวดศิลปะ/ผลงานสร้างสรรค์", "ร่วมนิทรรศการ/แสดงผลงาน", "รางวัลศิลปกรรม"],
+};
+
+function roadmapStepKind(title) {
+  const t = title || "";
+  if (/(เตรียม|สะสม).*(แฟ้ม|portfolio|พอร์ต)/i.test(t) || /(แฟ้ม|พอร์ต).*(สะสม|เตรียม)/i.test(t)) return "portfolio";
+  if (/ยื่น|สมัคร.*รอบ|รอบ\s*ที่?\s*1|รอบ\s*1/i.test(t)) return "submit";
+  if (/tpat\s*1|กสพท/i.test(t)) return "tpat1";
+  if (/tgat|tpat/i.test(t)) return "central";
+  if (/a-?level|a-?lv/i.test(t)) return "alevel";
+  if (/สัมภาษณ์|interview/i.test(t)) return "interview";
+  if (/ประกาศ|result|ยืนยันสิทธิ/i.test(t)) return "result";
+  return "generic";
+}
+
+async function resolveTcas70Faculty(ctx) {
+  if (!ctx) return null;
+  if (typeof TCAS70 === "undefined") return null;
+  if (ctx.facultyId) return TCAS70.faculties.find((f) => f.key === FACID_TO_TCAS70[ctx.facultyId]) || null;
+  if (ctx.programId) {
+    if (_tcas70FacCache[ctx.programId] !== undefined) return _tcas70FacCache[ctx.programId];
+    try {
+      const { data } = await db.from("programs").select("faculty_id").eq("id", ctx.programId).maybeSingle();
+      const f = TCAS70.faculties.find((x) => x.key === FACID_TO_TCAS70[data?.faculty_id]) || null;
+      _tcas70FacCache[ctx.programId] = f;
+      return f;
+    } catch { return null; }
+  }
+  return null;
+}
+
+const _fxBullets = (arr) => `<ul class="space-y-1.5">${arr.filter(Boolean).map((x) => `<li class="flex items-start gap-2 text-[13px] text-on-surface leading-relaxed"><span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary shrink-0"></span><span class="flex-1">${esc(x)}</span></li>`).join("")}</ul>`;
+const _fxLinkPrimary = (href, label, ic = "link") => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="tactile-button flex items-center justify-center gap-2 w-full bg-primary-container text-on-primary font-display font-bold text-[14px] rounded-xl py-2.5 border-b-4 border-[#6b7a08]">${sl(ic, { size: 16, color: "#16180f" })} ${esc(label)}</a>`;
+const _fxLinkOutline = (href, label, ic = "school") => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 w-full border-2 border-surface-variant text-on-surface font-bold text-[14px] rounded-xl py-2.5 hover:border-primary transition-colors">${sl(ic, { size: 16, color: "#9aa090" })} ${esc(label)}</a>`;
+function _weightsText(fac, filterFn) {
+  if (!fac) return "";
+  return Object.entries(fac.weights).filter(([k]) => filterFn(k)).sort((a, b) => b[1] - a[1])
+    .map(([k, w]) => `${(TCAS70.subjects[k]?.label || subjectLabel(k))} ${w}%`).join(" · ");
+}
+
+// เปิดแผงรายละเอียดของขั้นตอน roadmap (คลิก card)
+async function openRoadmapStep(step, ctx) {
+  const body = document.getElementById("detail-body");
+  const panel = document.getElementById("detail-panel");
+  const scrim = document.getElementById("panel-scrim");
+  if (!body || !panel || !scrim) return;
+  const close = () => { panel.classList.add("hidden-panel"); scrim.classList.add("opacity-0", "pointer-events-none"); };
+  body.innerHTML = `<div class="flex justify-center py-10"><div class="cook-spinner"></div></div>`;
+  panel.classList.remove("hidden-panel");
+  scrim.classList.remove("opacity-0", "pointer-events-none");
+  scrim.onclick = close;
+
+  const fac = await resolveTcas70Faculty(ctx);
+  const uni = (ctx && ctx.uni) || "";
+  const kind = roadmapStepKind(step.title);
+  let content = "";
+
+  if (kind === "portfolio") {
+    const tips = fac && PORTFOLIO_TIPS[fac.key];
+    content = `
+      <div class="mb-4">
+        <div class="font-display font-bold text-[14px] text-on-surface mb-2">${sl("target",{size:15,color:"#c2d90f",cls:"inline align-middle"})} ผลงานแนะนำสำหรับ${fac ? " " + esc(fac.label) : "คณะนี้"}</div>
+        ${tips ? _fxBullets(tips) : `<p class="text-[13px] text-on-surface-variant">เตรียมผลงานที่เกี่ยวข้องกับสาขา — โครงงาน กิจกรรม การแข่งขัน และเกียรติบัตร</p>`}
+      </div>
+      <div class="mb-4">
+        <div class="font-display font-bold text-[14px] text-on-surface mb-2">เคล็ดลับจัดพอร์ต</div>
+        ${_fxBullets(["ปกติไม่เกิน 10 หน้า (ตามที่คณะกำหนด) — เน้นคุณภาพมากกว่าปริมาณ", "เรียงผลงานเด่นไว้หน้าแรก + สรุปสิ่งที่ได้เรียนรู้", "ระบุบทบาทของตัวเองในแต่ละกิจกรรมให้ชัด", "แนบเกียรติบัตร/หลักฐานให้ครบ"])}
+      </div>`;
+  } else if (kind === "central") {
+    const subj = _weightsText(fac, (k) => k === "tgat" || /^tpat/.test(k));
+    content = `
+      <div class="mb-4">${_fxBullets(["สมัครสอบผ่านระบบ myTCAS (student.mytcas.com)", "TGAT + TPAT2–5 สอบ 30 ม.ค.–1 ก.พ. 2570", subj ? `วิชาที่คณะนี้ให้น้ำหนัก: ${subj}` : "เลือกสอบวิชาตามเกณฑ์ของคณะ", "ทบทวนแนวข้อสอบ TGAT/TPAT ล่วงหน้า"])}</div>
+      <div class="space-y-2">${_fxLinkPrimary(MYTCAS_STUDENT, "สมัครสอบที่ myTCAS", "link")}</div>`;
+  } else if (kind === "tpat1") {
+    content = `
+      <div class="mb-4">${_fxBullets(["TPAT1 วิชาเฉพาะ กสพท. (สำหรับสายแพทย์/ทันตะ/สัตวแพทย์/เภสัช)", "สอบ 13 ก.พ. 2570", "สมัครผ่าน myTCAS + สมัครกับ กสพท. ตามประกาศ"])}</div>
+      <div class="space-y-2">${_fxLinkPrimary(MYTCAS_STUDENT, "เข้าระบบ myTCAS", "link")}</div>`;
+  } else if (kind === "alevel") {
+    const subj = _weightsText(fac, (k) => /^a_?lv_/.test(k));
+    content = `
+      <div class="mb-4">${_fxBullets(["A-Level สอบ 13–15 มี.ค. 2570", subj ? `วิชาที่คณะนี้ใช้: ${subj}` : "เลือกสอบวิชาตามที่คณะกำหนด", "สมัครผ่าน myTCAS"])}</div>
+      <div class="space-y-2">${_fxLinkPrimary(MYTCAS_STUDENT, "สมัครสอบที่ myTCAS", "link")}</div>`;
+  } else if (kind === "submit") {
+    content = `
+      <div class="mb-4">${_fxBullets(["ยื่นสมัครผ่านระบบ myTCAS ในช่วงรอบที่กำหนด", "ตรวจสอบเกณฑ์/เอกสารที่มหาวิทยาลัยกำหนดเพิ่มเติม", uni ? `บางที่ต้องสมัครผ่านระบบรับสมัครของ ${uni} ด้วย` : "บางที่ต้องสมัครผ่านระบบของมหาวิทยาลัยด้วย", "อย่าลืมกดยืนยันสิทธิ์ในช่วงเวลาที่กำหนด"])}</div>
+      <div class="space-y-2">
+        ${_fxLinkPrimary(MYTCAS_STUDENT, "เข้าระบบ myTCAS", "link")}
+        ${uni ? _fxLinkOutline(uniSearchUrl(uni, "รับสมัคร TCAS รอบ 1 Portfolio"), "ค้นหารับสมัครของ " + uni, "school") : ""}
+      </div>`;
+  } else if (kind === "interview") {
+    content = `<div class="mb-4">${_fxBullets(["เตรียมตอบว่าทำไมอยากเข้าคณะนี้ + แผนอนาคต", "ทบทวนผลงานในพอร์ตให้พร้อมเล่า", "แต่งกายสุภาพ ตรงต่อเวลา", "ติดตามวัน–สถานที่สัมภาษณ์จากประกาศของคณะ"])}</div>`;
+  } else if (kind === "result") {
+    content = `
+      <div class="mb-4">${_fxBullets(["ตรวจผลและ กดยืนยันสิทธิ์ ในระบบ myTCAS ตามกำหนด", "ถ้าไม่ยืนยันสิทธิ์ = สละสิทธิ์รอบนั้น", "ถ้าต้องการลุ้นรอบถัดไป สามารถสละสิทธิ์เพื่อไปรอบต่อไปได้"])}</div>
+      <div class="space-y-2">${_fxLinkPrimary(MYTCAS_STUDENT, "เข้าระบบ myTCAS", "link")}</div>`;
+  } else {
+    content = `<div class="mb-4">${_fxBullets([step.description || "ทำตามขั้นตอนนี้ให้เรียบร้อยตามช่วงเวลาที่กำหนด", "ติดตามประกาศจาก myTCAS และมหาวิทยาลัยอย่างสม่ำเสมอ"])}</div>
+      <div class="space-y-2">${_fxLinkPrimary(MYTCAS_WWW, "ดูข้อมูล TCAS ที่ mytcas.com", "link")}</div>`;
+  }
+
+  body.innerHTML = `
+    <div class="flex items-center gap-sm mb-1">
+      <div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center font-headline font-extrabold text-on-primary text-lg shrink-0">${step.step_number}</div>
+      <div class="min-w-0">
+        <h3 class="font-display font-extrabold text-[19px] text-on-surface leading-snug">${esc(step.title)}</h3>
+        ${step.target_period ? `<div class="text-[12px] font-bold text-secondary">${esc(step.target_period)}</div>` : ""}
+      </div>
+    </div>
+    ${step.description ? `<p class="text-[14px] text-on-surface-variant mt-1 mb-3 leading-relaxed">${esc(step.description)}</p>` : `<div class="mb-2"></div>`}
+    ${content}
+    <div class="text-[11px] text-on-surface-variant leading-relaxed border-t border-surface-variant pt-2 mt-1">${sl("info",{size:12,color:"#9aa090",cls:"inline align-middle"})} วันที่/เกณฑ์อ้างอิง TCAS70 (ประมาณการ) — ตรวจสอบกำหนดการจริงที่ mytcas.com และประกาศของแต่ละมหาวิทยาลัย</div>
+    <button id="panel-close" class="tactile-button w-full mt-lg bg-surface-container-high text-on-surface font-bold rounded-xl py-3 border-b-4 border-surface-variant">ปิด</button>`;
+  document.getElementById("panel-close").addEventListener("click", close);
+}
+
 function openRound(r) {
   const scores = r.scores || {};
   const hasScores = Object.keys(scores).length > 0;
@@ -1574,7 +1726,7 @@ function wireView(v) {
     $app().querySelectorAll("[data-round]").forEach((b) => b.addEventListener("click", () => {
       openRound(state.flow.rounds[+b.dataset.round]);
     }));
-    wireRoadmapTimeline(state.flow.pathId, state.flow.roadmap || []);
+    wireRoadmapTimeline(state.flow.pathId, state.flow.roadmap || [], { facultyId: state.flow.facultyId, uni: state.flow.program?.uni, programId: state.flow.program?.id });
     wireWeightsToggle(state.flow.program?.id, state.flow.facultyId);
   }
 }
