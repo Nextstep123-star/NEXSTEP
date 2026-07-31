@@ -255,6 +255,18 @@ async function viewCalendar() {
   function drawAll() { renderGrid(); renderDayDetail(); renderUpcoming(); renderAll(); wireJump(); }
   drawAll();
 
+  // เปิดจาก dashboard (คลิกกิจกรรมใกล้ถึง) → เปิดเดือน/วันนั้น + โชว์รายละเอียด
+  if (window._calendarJump) {
+    const jd = new Date(window._calendarJump);
+    window._calendarJump = null;
+    if (!isNaN(jd)) {
+      viewYear = jd.getFullYear(); viewMonth = jd.getMonth();
+      selected = `${viewYear}-${viewMonth}-${jd.getDate()}`;
+      renderGrid(); renderDayDetail();
+      setTimeout(() => document.getElementById("cal-day-detail")?.scrollIntoView({ behavior: "smooth", block: "center" }), 250);
+    }
+  }
+
   // Navigation
   document.getElementById("cal-prev")?.addEventListener("click", () => {
     if (viewMonth === 0) { viewMonth = 11; viewYear--; } else viewMonth--;

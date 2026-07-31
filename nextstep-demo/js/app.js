@@ -505,7 +505,7 @@ function viewDashboard() {
   // roadmap horizontal progress (main path)
   const roadmapSteps = mainPath?._roadmap || [];
   const roadmapSection = mainPath ? `
-    <div class="db-card p-5 mb-4">
+    <div data-nav="roadmap-list" role="button" tabindex="0" class="db-card p-5 mb-4 cursor-pointer">
       <div class="flex items-start gap-3 mb-4">
         <div class="w-10 h-10 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">${sl("target", { size: 20, color: "#c2d90f" })}</div>
         <div class="flex-1 min-w-0">
@@ -528,6 +528,7 @@ function viewDashboard() {
       <div class="h-2.5 rounded-full bg-surface-variant overflow-hidden">
         <div id="dash-rm-bar" class="h-full rounded-full bg-primary" style="width:${mpPct != null ? mpPct : 0}%;transition:width .6s cubic-bezier(.32,.78,.2,1)"></div>
       </div>
+      <div class="flex items-center justify-end gap-1 mt-3 text-[12px] font-bold text-primary">ดูโรดแมปเต็ม ${sl("arrow_right",{size:14,color:"#c2d90f"})}</div>
     </div>` : `
     <div class="db-card p-6 mb-4 flex flex-col items-center text-center gap-3">
       <div class="mascot-float">${nexMascot("mascot w-24 h-24", { pose: "wave" })}</div>
@@ -648,14 +649,20 @@ function viewDashboard() {
     <!-- bottom 2-col: live from Supabase (BUG-8) -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div class="db-card p-5">
-        <div class="font-display font-bold text-[14px] text-on-surface-variant mb-3">กิจกรรมใกล้มาถึง</div>
-        <div id="dash-events" class="space-y-3">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-display font-bold text-[14px] text-on-surface-variant">กิจกรรมใกล้มาถึง</div>
+          <button data-nav="calendar" class="text-[12px] font-bold text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all">ดูทั้งหมด ${sl("arrow_right",{size:13,color:"#c2d90f"})}</button>
+        </div>
+        <div id="dash-events" class="space-y-2">
           ${[1,2,3].map(()=>`<div class="h-10 bg-surface-variant rounded-lg animate-pulse"></div>`).join("")}
         </div>
       </div>
       <div class="db-card p-5">
-        <div class="font-display font-bold text-[14px] text-on-surface-variant mb-3">ข่าวสารการศึกษา</div>
-        <div id="dash-news" class="space-y-3">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-display font-bold text-[14px] text-on-surface-variant">ข่าวสารการศึกษา</div>
+          <button data-nav="news-page" class="text-[12px] font-bold text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all">ดูทั้งหมด ${sl("arrow_right",{size:13,color:"#c2d90f"})}</button>
+        </div>
+        <div id="dash-news" class="space-y-2">
           ${[1,2,3].map(()=>`<div class="h-10 bg-surface-variant rounded-lg animate-pulse"></div>`).join("")}
         </div>
       </div>
@@ -696,26 +703,35 @@ async function loadDashboardLiveData() {
     if (!newsItems || !newsItems.length) newsItems = TCAS70.news.slice(0, 3);
 
     const evEl = document.getElementById("dash-events");
-    if (evEl) evEl.innerHTML = evs.length ? evs.slice(0, 3).map(e => {
-      const d = new Date(e.event_date); const dot = dotCls[e.color] || "bg-primary";
-      return `<div class="flex items-start gap-3">
-        <div class="w-10 shrink-0 text-center"><div class="font-mono font-bold text-[16px] text-on-surface leading-none">${d.getDate()}</div><div class="text-[11px] text-on-surface-variant">${MONTHS_TH_SHORT[d.getMonth()]}</div></div>
-        <div class="flex-1 min-w-0 border-l-2 border-surface-variant pl-3">
-          <div class="font-bold text-[13px] text-on-surface leading-snug">${esc(e.title)}</div>
-          <span class="inline-block w-1.5 h-1.5 rounded-full ${dot} mr-1"></span>
-        </div>
-      </div>`;
-    }).join("") : `<p class="text-[13px] text-on-surface-variant">ไม่มีกิจกรรมที่กำลังจะมาถึง</p>`;
+    if (evEl) {
+      evEl.innerHTML = evs.length ? evs.slice(0, 3).map(e => {
+        const d = new Date(e.event_date); const dot = dotCls[e.color] || "bg-primary";
+        return `<button data-ev-date="${e.event_date}" class="w-full text-left flex items-start gap-3 rounded-lg p-2 -mx-2 hover:bg-surface-variant/40 transition-colors">
+          <div class="w-10 shrink-0 text-center"><div class="font-mono font-bold text-[16px] text-on-surface leading-none">${d.getDate()}</div><div class="text-[11px] text-on-surface-variant">${MONTHS_TH_SHORT[d.getMonth()]}</div></div>
+          <div class="flex-1 min-w-0 border-l-2 border-surface-variant pl-3">
+            <div class="font-bold text-[13px] text-on-surface leading-snug">${esc(e.title)}</div>
+            <div class="flex items-center gap-1.5 mt-0.5"><span class="w-1.5 h-1.5 rounded-full ${dot} shrink-0"></span><span class="text-[11px] text-on-surface-variant">${esc(e.type || "กิจกรรม")}</span></div>
+          </div>
+          ${sl("arrow_right",{size:14,color:"#9aa090",cls:"shrink-0 mt-1"})}
+        </button>`;
+      }).join("") : `<p class="text-[13px] text-on-surface-variant">ไม่มีกิจกรรมที่กำลังจะมาถึง</p>`;
+      evEl.querySelectorAll("[data-ev-date]").forEach(b => b.addEventListener("click", () => {
+        window._calendarJump = b.dataset.evDate; // ปฏิทินจะเปิดวันนี้ + โชว์รายละเอียด
+        go("calendar");
+      }));
+    }
 
     const nwEl = document.getElementById("dash-news");
     if (nwEl) nwEl.innerHTML = newsItems.length ? newsItems.map(n => {
       const d = new Date(n.published_at);
-      return `<div class="flex gap-2 items-start">
+      return `<button data-nav="news-page" class="w-full text-left flex gap-2 items-start rounded-lg p-2 -mx-2 hover:bg-surface-variant/40 transition-colors">
         <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary shrink-0"></span>
-        <div><div class="text-[13px] text-on-surface font-medium leading-snug line-clamp-2">${esc(n.title)}</div>
+        <div class="flex-1 min-w-0"><div class="text-[13px] text-on-surface font-medium leading-snug line-clamp-2">${esc(n.title)}</div>
         <div class="text-[11px] text-on-surface-variant mt-0.5">${d.getDate()} ${MONTHS_TH_SHORT[d.getMonth()]} ${d.getFullYear() + 543} · ${esc(n.category)}</div></div>
-      </div>`;
+        ${sl("arrow_right",{size:14,color:"#9aa090",cls:"shrink-0 mt-1"})}
+      </button>`;
     }).join("") : `<p class="text-[13px] text-on-surface-variant">ยังไม่มีข่าวสาร</p>`;
+    if (nwEl) nwEl.querySelectorAll("[data-nav]").forEach(b => b.addEventListener("click", () => go(b.dataset.nav)));
 
     // stat cards: กิจกรรมใกล้ถึง = อันแรก · วันสอบถัดไป = อันแรกที่เป็นการสอบ
     const near = evs[0];
