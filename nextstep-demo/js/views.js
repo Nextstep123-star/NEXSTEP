@@ -506,7 +506,7 @@ async function loadRoadmapIntoContainer(path) {
   const container = document.getElementById("roadmap-container");
   if (!container) return;
   try {
-    const [rounds, roadmap] = await Promise.all([fetchRounds(path.programId), fetchRoadmap(path.programId)]);
+    const { rounds, roadmap } = await getProgramRoadmap(path.programId, path.uni);
     const p = roadmapProgress(roadmap, path.id);
 
     const roundPills = rounds.map((r, i) => `

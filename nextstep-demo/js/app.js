@@ -193,13 +193,20 @@ function roadmapProgress(roadmap, pathId) {
 function roadmapTimelineHTML(roadmap, pathId) {
   const completed = getProgress(pathId);
   const curStep = currentStepNumber(roadmap, completed);
-  return roadmap.map((s) => {
+  return roadmap.map((s, i) => {
     const done = completed.includes(s.step_number);
     const current = s.step_number === curStep;
     const dotBg = done ? "bg-primary border-primary" : current ? "bg-primary-container border-[#96a80a]" : "bg-surface-container-high border-surface-variant";
     const dotShadow = (done || current) ? "#96a80a" : "#0d0f08";
     const cardBorder = done ? "border-primary/60" : current ? "border-primary" : "border-surface-variant";
+    // หัวข้อกลุ่มรอบ (แสดงเมื่อขึ้นรอบใหม่)
+    const header = (s.roundFirst && s.round_label) ? `
+      <div class="flex items-center gap-2 ${i === 0 ? "" : "mt-5"} mb-3 relative z-10">
+        <span class="text-[12px] font-display font-bold text-tertiary bg-tertiary/15 border border-tertiary/30 rounded-full px-3 py-1">${esc(s.round_label)}</span>
+        <div class="flex-1 h-px bg-surface-variant"></div>
+      </div>` : "";
     return `
+      ${header}
       <div class="flex items-start gap-md mb-4 relative">
         <button data-step="${s.step_number}" aria-label="สลับสถานะขั้น ${s.step_number}"
           class="w-12 h-12 rounded-full ${dotBg} border-2 flex items-center justify-center shadow-[0_4px_0_${dotShadow}] z-10 shrink-0 mt-1 ${current && !done ? "pulse-animation" : ""} transition-all">
@@ -480,6 +487,67 @@ async function fetchRoadmap(programId) {
   return data;
 }
 
+/* รอบซ้ำ → เอาแค่ 1 ต่อ round_number, เรียงตามเลขรอบ */
+function dedupeRounds(rounds) {
+  const seen = {}, out = [];
+  (rounds || []).forEach((r) => {
+    const key = r.round_number != null ? "n" + r.round_number : (r.round_label || JSON.stringify(r));
+    if (!seen[key]) { seen[key] = 1; out.push(r); }
+  });
+  out.sort((a, b) => (a.round_number || 99) - (b.round_number || 99));
+  return out;
+}
+function roundShortLabel(r) {
+  const map = { 1: "รอบ 1 Portfolio", 2: "รอบ 2 โควตา", 3: "รอบ 3 Admission", 4: "รอบ 4 Direct Admission" };
+  return map[r.round_number] || (r.round_label || ("รอบ " + (r.round_number ?? "?")));
+}
+
+/* สร้างเส้นทางเตรียมตัว "เฉพาะหลักสูตร" จากรอบที่เปิดรับจริง — เปิดกี่รอบก็เตรียมครบทุกรอบ */
+function buildRoadmapFromRounds(rounds, ctx) {
+  const uniq = dedupeRounds(rounds);
+  if (!uniq.length) return null; // ไม่มีรอบ → ให้ fallback ไป program_roadmaps
+  const steps = [];
+  let n = 1;
+  for (const r of uniq) {
+    const label = roundShortLabel(r);
+    const rn = r.round_number;
+    const push = (title, description, period, first = false) =>
+      steps.push({ step_number: n++, title, description, target_period: period, round_number: rn, round_label: label, roundFirst: first });
+
+    if (rn === 1) {
+      push("เตรียมแฟ้มสะสมผลงาน (Portfolio)", "รวบรวมผลงานวิชาการ กิจกรรม การแข่งขัน และเกียรติบัตรที่เกี่ยวข้องกับสาขา จัดพอร์ตให้โดดเด่น", "ม.4–ม.6", true);
+      push(`ยื่นสมัคร ${label}`, "สมัครผ่าน myTCAS และ/หรือระบบรับสมัครของมหาวิทยาลัยตามประกาศ", "ต.ค.–ธ.ค.");
+      push("สอบสัมภาษณ์ / นำเสนอผลงาน", "บางหลักสูตรมีสัมภาษณ์หรือให้นำเสนอแฟ้มสะสมผลงาน", "ธ.ค.–ม.ค.");
+      push(`ประกาศผล & ยืนยันสิทธิ์ (${label})`, "ตรวจผลและกดยืนยันสิทธิ์ในระบบ myTCAS ตามกำหนด", "ม.ค.–ก.พ.");
+    } else if (rn === 2) {
+      push("เตรียมคุณสมบัติ/เอกสารโควตา", "ตรวจเกณฑ์โควตา (พื้นที่/โครงการ) และเตรียมเอกสาร บางที่มีสอบวิชาเฉพาะ", "พ.ย.–ก.พ.", true);
+      push(`สมัคร ${label}`, "สมัครรอบโควตาตามประกาศ (อาจใช้คะแนน TGAT/TPAT/A-Level หรือข้อสอบของที่นั้น)", "ก.พ.–มี.ค.");
+      push(`ประกาศผล & ยืนยันสิทธิ์ (${label})`, "ตรวจผลและยืนยันสิทธิ์ในระบบ myTCAS", "เม.ย.–พ.ค.");
+    } else if (rn === 3) {
+      push("สมัครสอบ TGAT / TPAT", "ลงทะเบียนและสอบ TGAT/TPAT ผ่าน myTCAS (สอบ ม.ค.–ก.พ. 2570)", "ธ.ค.–ก.พ.", true);
+      push("สอบ A-Level", "สอบวิชาสามัญ A-Level ตามวิชาที่คณะกำหนด (สอบ มี.ค. 2570)", "มี.ค.");
+      push(`ยื่นเลือกอันดับ ${label}`, "เลือกอันดับได้สูงสุด 10 อันดับ ในระบบ myTCAS", "พ.ค.");
+      push(`ประกาศผล & ยืนยันสิทธิ์ (${label})`, "ประมวลผลการเลือกอันดับ + ยืนยันสิทธิ์ในระบบ myTCAS", "พ.ค.");
+    } else {
+      push(`สมัคร ${label} (รับตรงอิสระ)`, "สมัครรับตรงกับมหาวิทยาลัยโดยตรง (เปิดเมื่อยังมีที่นั่งเหลือ)", "พ.ค.–มิ.ย.", true);
+      push(`ประกาศผล & รายงานตัว (${label})`, "ตรวจผลและรายงานตัวตามประกาศของมหาวิทยาลัย", "มิ.ย.");
+    }
+  }
+  return steps;
+}
+
+/* รวมการโหลด: rounds (dedupe) + roadmap (สร้างจากรอบ, fallback program_roadmaps) */
+async function getProgramRoadmap(programId, uni) {
+  try {
+    const rawRounds = await fetchRounds(programId);
+    const rounds = dedupeRounds(rawRounds);
+    const built = buildRoadmapFromRounds(rawRounds, { uni });
+    if (built && built.length) return { rounds, roadmap: built };
+    const roadmap = await fetchRoadmap(programId);
+    return { rounds, roadmap: roadmap || [] };
+  } catch { return { rounds: [], roadmap: [] }; }
+}
+
 /* ============================================================
    VIEWS
    ============================================================ */
@@ -756,7 +824,7 @@ async function loadDashboardLiveData() {
     const paths = getPaths();
     const mainPath = paths.find(p => p.id === getMain()) || paths[0];
     if (mainPath && mainPath.programId) {
-      const roadmap = await fetchRoadmap(mainPath.programId);
+      const { roadmap } = await getProgramRoadmap(mainPath.programId, mainPath.uni);
       if (roadmap && roadmap.length) {
         if (mainPath.steps !== roadmap.length) { mainPath.steps = roadmap.length; savePaths(paths); } // backfill
         const done = getProgress(mainPath.id).filter(n => roadmap.some(s => s.step_number === n)).length;
@@ -1028,9 +1096,8 @@ async function viewCooking() {
   const prog = state.flow.program;
   // spec §5.1 — try/catch, min ~900ms spinner, then transition; toast on failure.
   try {
-    const [rounds, roadmap] = await Promise.all([
-      fetchRounds(prog.id),
-      fetchRoadmap(prog.id),
+    const [{ rounds, roadmap }] = await Promise.all([
+      getProgramRoadmap(prog.id, prog.uni),   // เส้นทางเตรียมตัวสร้างจากรอบที่หลักสูตรนี้เปิดจริง
       new Promise((r) => setTimeout(r, 900)),
     ]);
     state.flow.rounds = rounds;
