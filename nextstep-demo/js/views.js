@@ -527,8 +527,15 @@ async function loadRoadmapIntoContainer(path) {
           <div data-rm-bar class="h-full rounded-full bg-primary" style="width:${p.pct}%;transition:width .5s cubic-bezier(.32,.78,.2,1)"></div>
         </div>
       </div>
-      <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร</h2>
+      <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร <span class="font-normal">· แตะดูสัดส่วนคะแนนแต่ละรอบ</span></h2>
       <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4">${roundPills||"<span class='text-on-surface-variant text-[13px]'>ยังไม่มีข้อมูลรอบรับสมัคร</span>"}</div>
+      <div class="db-card mb-4 overflow-hidden">
+        <button id="rm-weights-toggle" class="w-full flex items-center justify-between gap-2 p-4 text-left">
+          <span class="font-display font-bold text-[14px] text-on-surface flex items-center gap-1.5">${sl("chart",{size:16,color:"#c2d90f"})} สัดส่วนคะแนนที่ใช้เข้าคณะ</span>
+          <span class="text-[12px] text-on-surface-variant flex items-center gap-1"><span id="rm-weights-hint">กดดูเพิ่มเติม</span> <span id="rm-weights-caret" class="transition-transform">${sl("arrow_right",{size:16,color:"#9aa090"})}</span></span>
+        </button>
+        <div id="rm-weights" class="hidden px-4 pb-4"></div>
+      </div>
       <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว <span class="font-normal">· แตะเพื่อทำเครื่องหมายเสร็จ</span></h2>
       <div class="relative">
         <div class="absolute left-[23px] top-4 bottom-4 w-0.5 bg-surface-variant"></div>
@@ -538,6 +545,7 @@ async function loadRoadmapIntoContainer(path) {
 
     container.querySelectorAll("[data-round]").forEach(b => b.addEventListener("click", () => openRound(rounds[+b.dataset.round])));
     wireRoadmapTimeline(path.id, roadmap);
+    wireWeightsToggle(path.programId, path.facultyId);
 
     // ตั้งเป็นเส้นทางหลัก
     container.querySelector("#rm-main")?.addEventListener("click", () => setMainPath(path.id));

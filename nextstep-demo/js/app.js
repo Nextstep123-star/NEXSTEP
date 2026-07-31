@@ -13,10 +13,90 @@ const A_LEVEL = {
 };
 const SUBJECT_LABEL = {
   gpax: "GPAX", gpa: "GPA",
-  tgat: "TGAT", tgat1: "TGAT1", tgat2: "TGAT2", tgat3: "TGAT3",
-  tpat1: "TPAT1 (กสพท)", tpat2: "TPAT2", tpat21: "TPAT2.1", tpat22: "TPAT2.2",
-  tpat23: "TPAT2.3", tpat3: "TPAT3", tpat4: "TPAT4", tpat5: "TPAT5",
+  tgat: "TGAT ความถนัดทั่วไป", tgat1: "TGAT1 การสื่อสารภาษาอังกฤษ", tgat2: "TGAT2 การคิดอย่างมีเหตุผล", tgat3: "TGAT3 สมรรถนะการทำงาน",
+  tpat1: "TPAT1 วิชาเฉพาะ กสพท.", tpat2: "TPAT2 ศิลปกรรมศาสตร์", tpat21: "TPAT2.1", tpat22: "TPAT2.2",
+  tpat23: "TPAT2.3", tpat3: "TPAT3 วิทย์ เทคโนโลยี วิศวกรรม", tpat4: "TPAT4 สถาปัตยกรรม", tpat5: "TPAT5 ครุศาสตร์",
+  portfolio: "แฟ้มสะสมผลงาน (Portfolio)", interview: "สอบสัมภาษณ์", practical: "สอบปฏิบัติ", essay: "เรียงความ/ข้อเขียน",
 };
+
+/* faculty_id → คณะใน TCAS70 (สำหรับดึงสัดส่วนคะแนนรอบ Admission ที่ curate ไว้) */
+const FACID_TO_TCAS70 = { 1: "med", 2: "eng", 3: "compsci", 4: "account", 5: "comm", 6: "arts", 7: "law", 8: "polsci", 9: "sci", 10: "psych", 11: "arts", 13: "dent", 14: "pharm" };
+
+/* จัดกลุ่มน้ำหนักคะแนน → HTML (TGAT / TPAT / A-Level / อื่นๆ) พร้อมแถบสัดส่วน */
+function scoreBreakdownGroupsHTML(weights) {
+  const isTgat = (k) => k === "tgat" || /^tgat\d/.test(k);
+  const isTpat = (k) => /^tpat/.test(k);
+  const isAlv = (k) => /^a_?lv_/.test(k);
+  const groups = [
+    { title: "TGAT — ความถนัดทั่วไป", test: isTgat, color: "#c2d90f" },
+    { title: "TPAT — ความถนัดเฉพาะด้าน", test: isTpat, color: "#88ceff" },
+    { title: "A-Level — รายวิชา", test: isAlv, color: "#f1e800" },
+    { title: "องค์ประกอบอื่น (GPAX / แฟ้ม / สัมภาษณ์)", test: (k) => !isTgat(k) && !isTpat(k) && !isAlv(k), color: "#9aa090" },
+  ];
+  const entries = Object.entries(weights || {});
+  if (!entries.length) return `<p class="text-[13px] text-on-surface-variant">ไม่มีข้อมูลสัดส่วนคะแนน</p>`;
+  let html = "";
+  for (const g of groups) {
+    const rows = entries.filter(([k]) => g.test(k)).sort((a, b) => b[1] - a[1]);
+    if (!rows.length) continue;
+    const sum = rows.reduce((s, [, w]) => s + Number(w), 0);
+    html += `<div class="mb-3">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="font-display font-bold text-[13px] text-on-surface">${g.title}</span>
+        <span class="font-mono text-[12px] text-on-surface-variant">รวม ${sum}%</span>
+      </div>
+      ${rows.map(([k, w]) => {
+        const label = (typeof TCAS70 !== "undefined" && TCAS70.subjects && TCAS70.subjects[k]?.label) || subjectLabel(k);
+        return `<div class="mb-1.5">
+          <div class="flex items-center justify-between text-[12px] mb-0.5"><span class="text-on-surface">${esc(label)}</span><span class="font-mono font-bold text-on-surface">${w}%</span></div>
+          <div class="h-2 rounded-full bg-surface-variant overflow-hidden"><div class="h-full rounded-full" style="width:${Math.min(100, Number(w))}%;background:${g.color};transition:width .5s"></div></div>
+        </div>`;
+      }).join("")}
+    </div>`;
+  }
+  return html;
+}
+
+/* เติมสัดส่วนคะแนนรอบ Admission (อ้างอิง TCAS70) ลง container ตามคณะของหลักสูตร */
+async function renderRoadmapWeights(containerId, programId, facultyId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  try {
+    let facId = facultyId;
+    if (!facId && programId) {
+      const { data } = await db.from("programs").select("faculty_id").eq("id", programId).maybeSingle();
+      facId = data?.faculty_id;
+    }
+    const fac = (typeof TCAS70 !== "undefined") && TCAS70.faculties.find((f) => f.key === FACID_TO_TCAS70[facId]);
+    if (!fac) { el.innerHTML = `<p class="text-[13px] text-on-surface-variant py-2">ยังไม่มีข้อมูลสัดส่วนคะแนนอ้างอิงสำหรับคณะนี้ · ดูเกณฑ์จริงที่ mytcas.com</p>`; return; }
+    el.innerHTML = `
+      <div class="text-[12px] text-on-surface-variant mb-3">อ้างอิงเกณฑ์ <span class="font-bold text-on-surface">${esc(fac.round)}</span> ของ ${esc(fac.label)}${fac.minGpax ? ` · GPAX ขั้นต่ำ ${fac.minGpax.toFixed(2)}` : ""}</div>
+      ${scoreBreakdownGroupsHTML(fac.weights)}
+      <div class="text-[11px] text-on-surface-variant leading-relaxed border-t border-surface-variant pt-2 mt-1">
+        ${sl("info", { size: 12, color: "#9aa090", cls: "inline align-middle" })} ${esc(TCAS70.estimateNote)} — เกณฑ์จริงแต่ละมหาวิทยาลัยต่างกัน ตรวจสอบที่ mytcas.com
+      </div>`;
+  } catch { el.innerHTML = `<p class="text-[13px] text-on-surface-variant py-2">โหลดสัดส่วนคะแนนไม่สำเร็จ</p>`; }
+}
+
+/* wire ปุ่มกดเปิด/ปิดสัดส่วนคะแนน (โหลดครั้งแรกเมื่อเปิด) — ใช้ทั้ง 2 หน้า roadmap */
+function wireWeightsToggle(programId, facultyId) {
+  const btn = document.getElementById("rm-weights-toggle");
+  const box = document.getElementById("rm-weights");
+  if (!btn || !box) return;
+  const caret = document.getElementById("rm-weights-caret");
+  const hint = document.getElementById("rm-weights-hint");
+  let loaded = false;
+  btn.addEventListener("click", () => {
+    const open = box.classList.toggle("hidden") === false;
+    if (caret) caret.style.transform = open ? "rotate(90deg)" : "";
+    if (hint) hint.textContent = open ? "ซ่อน" : "กดดูเพิ่มเติม";
+    if (open && !loaded) {
+      loaded = true;
+      box.innerHTML = `<div class="flex justify-center py-4"><div class="cook-spinner" style="width:28px;height:28px;border-width:3px"></div></div>`;
+      renderRoadmapWeights("rm-weights", programId, facultyId);
+    }
+  });
+}
 function subjectLabel(code) {
   if (SUBJECT_LABEL[code]) return SUBJECT_LABEL[code];
   const m = /^a_lv_(\d+)$/.exec(code);
@@ -223,8 +303,8 @@ function enterAdminMode() {
     if (!getPaths().length) {
       // programId เป็น id จริง (มี roadmap/rounds ใน DB) เพื่อให้ demo โชว์เส้นทางจริง
       const demo = [
-        { id: "p_demo_med", name: "หมอในฝัน", programName: "แพทยศาสตรบัณฑิต", uni: "มหาวิทยาลัยธรรมศาสตร์", programId: "10050211100101A", track: "sci_math", steps: 4, createdAt: Date.now() },
-        { id: "p_demo_eng", name: "วิศวะ คอมพิวเตอร์", programName: "วิศวกรรมคอมพิวเตอร์", uni: "มหาวิทยาลัยศรีนครินทรวิโรฒ", programId: "10090209300501A", track: "sci_math", steps: 4, createdAt: Date.now() - 86400000 },
+        { id: "p_demo_med", name: "หมอในฝัน", programName: "แพทยศาสตรบัณฑิต", uni: "มหาวิทยาลัยธรรมศาสตร์", programId: "10050211100101A", track: "sci_math", facultyId: 1, steps: 4, createdAt: Date.now() },
+        { id: "p_demo_eng", name: "วิศวะ คอมพิวเตอร์", programName: "วิศวกรรมคอมพิวเตอร์", uni: "มหาวิทยาลัยศรีนครินทรวิโรฒ", programId: "10090209300501A", track: "sci_math", facultyId: 2, steps: 4, createdAt: Date.now() - 86400000 },
       ];
       savePaths(demo);
       setMain(demo[0].id);
@@ -933,7 +1013,7 @@ async function viewCooking() {
     // Persist path (localStorage; Phase 3 → user_paths). Skip when re-opening an existing path.
     if (!state.flow.reopen) {
       const paths = getPaths();
-      const rec = { id: uid(), name: state.flow.name || prog.name, programId: prog.id, programName: prog.name, uni: prog.uni, track: state.flow.track, steps: roadmap.length, createdAt: Date.now() };
+      const rec = { id: uid(), name: state.flow.name || prog.name, programId: prog.id, programName: prog.name, uni: prog.uni, track: state.flow.track, facultyId: state.flow.facultyId || null, steps: roadmap.length, createdAt: Date.now() };
       paths.unshift(rec);
       savePaths(paths);
       if (!getMain()) setMain(rec.id);
@@ -990,8 +1070,17 @@ function viewRoadmap() {
       </div>
     </div>
 
-    <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร TCAS</h2>
-    <div class="flex gap-sm overflow-x-auto no-scrollbar pb-2 mb-5">${roundPills}</div>
+    <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-2 flex items-center gap-1.5">${sl("target",{size:16,color:"#9aa090"})} รอบรับสมัคร TCAS <span class="font-normal">· แตะเพื่อดูสัดส่วนคะแนนแต่ละรอบ</span></h2>
+    <div class="flex gap-sm overflow-x-auto no-scrollbar pb-2 mb-4">${roundPills}</div>
+
+    <!-- สัดส่วนคะแนนเข้าคณะ (กดดูเพิ่มเติม) -->
+    <div class="bg-surface-container-lowest border-2 border-surface-variant rounded-xl mb-5 overflow-hidden">
+      <button id="rm-weights-toggle" class="w-full flex items-center justify-between gap-2 px-md py-3 text-left">
+        <span class="font-display font-bold text-[14px] text-on-surface flex items-center gap-1.5">${sl("chart",{size:16,color:"#c2d90f"})} สัดส่วนคะแนนที่ใช้เข้าคณะ</span>
+        <span class="text-[12px] text-on-surface-variant flex items-center gap-1"><span id="rm-weights-hint">กดดูเพิ่มเติม</span> <span id="rm-weights-caret" class="transition-transform">${sl("arrow_right",{size:16,color:"#9aa090"})}</span></span>
+      </button>
+      <div id="rm-weights" class="hidden px-md pb-md"></div>
+    </div>
 
     <h2 class="font-display font-bold text-[13px] text-on-surface-variant mb-3 flex items-center gap-1.5">${sl("route",{size:16,color:"#9aa090"})} เส้นทางเตรียมตัว <span class="font-normal text-on-surface-variant">· แตะวงกลมหรือปุ่มเพื่อทำเครื่องหมายเสร็จ</span></h2>
     <div class="relative">
@@ -1015,10 +1104,10 @@ function detailPanelSkeleton() {
 }
 function openRound(r) {
   const scores = r.scores || {};
-  const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const chips = entries.length
-    ? entries.map(([code, w]) => `<span class="chip">${esc(subjectLabel(code))} <span class="w">${w}%</span></span>`).join("")
-    : `<span class="text-on-surface-variant text-[14px]">ไม่มีข้อมูลสัดส่วนวิชา</span>`;
+  const hasScores = Object.keys(scores).length > 0;
+  const breakdown = hasScores
+    ? scoreBreakdownGroupsHTML(scores)
+    : `<p class="text-on-surface-variant text-[14px]">รอบนี้ไม่ระบุสัดส่วนคะแนนกลาง (มักพิจารณาจากแฟ้ม/สัมภาษณ์ หรือดูประกาศของหลักสูตร)</p>`;
 
   const meta = [];
   if (r.quota) meta.push(`${icon("groups", { cls: "text-[18px]" })} รับ ~${r.quota} คน`);
@@ -1033,8 +1122,8 @@ function openRound(r) {
     ${r.project_name ? `<p class="text-on-surface-variant text-[14px] mb-md">${esc(r.project_name)}</p>` : `<div class="mb-md"></div>`}
 
     <div class="mb-lg">
-      <div class="font-headline font-bold text-[14px] text-on-surface-variant mb-sm">วิชาที่ใช้ & น้ำหนัก</div>
-      <div class="flex flex-wrap gap-2">${chips}</div>
+      <div class="font-headline font-bold text-[14px] text-on-surface-variant mb-sm">สัดส่วนคะแนน & น้ำหนัก (รอบนี้)</div>
+      ${breakdown}
     </div>
 
     ${meta.length ? `<div class="grid grid-cols-1 gap-2 text-[14px] text-on-surface font-medium">${meta.map((m) => `<div class="flex items-center gap-2 bg-surface-container-low rounded-lg px-3 py-2">${m}</div>`).join("")}</div>` : ""}
@@ -1470,6 +1559,7 @@ function wireView(v) {
       openRound(state.flow.rounds[+b.dataset.round]);
     }));
     wireRoadmapTimeline(state.flow.pathId, state.flow.roadmap || []);
+    wireWeightsToggle(state.flow.program?.id, state.flow.facultyId);
   }
 }
 
