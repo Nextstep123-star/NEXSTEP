@@ -390,6 +390,7 @@ async function doGoogleLogin() {
 }
 function authErr(e) {
   const m = (e?.message || "").toLowerCase();
+  if (e?.status >= 500 || /retryable/i.test(e?.name || "")) return "เซิร์ฟเวอร์ตอบกลับไม่สำเร็จ (อาจเป็นระบบอีเมล/SMTP) — รอสักครู่แล้วลองใหม่นะ";
   if (m.includes("rate limit") || m.includes("too many") || m.includes("429")) return "ขอบ่อยเกินไป รอสักครู่แล้วลองใหม่นะ";
   if (m.includes("invalid login")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   if (m.includes("already registered") || m.includes("already been registered") || m.includes("user already")) return "อีเมลนี้มีบัญชีอยู่แล้ว ลองเข้าสู่ระบบดูมั้ย?";
@@ -1772,7 +1773,14 @@ function wireView(v) {
         redirectTo: window.location.origin + window.location.pathname,
       });
       btn.disabled = false; btn.innerHTML = `${sl("bell",{size:16,color:"#16180f"})} ส่งลิงก์ตั้งรหัสใหม่`;
-      if (error) { toast(authErr(error)); return; }
+      if (error) {
+        const em = (error.message || "").toLowerCase();
+        // 500 / retryable = ระบบส่งอีเมลของเซิร์ฟเวอร์มีปัญหา/จำกัดจำนวน (ต้องตั้งค่า SMTP)
+        if (error.status >= 500 || /retryable|fetch|sending|smtp/i.test((error.name || "") + " " + em))
+          toast("ส่งอีเมลไม่สำเร็จ — ระบบส่งอีเมลของเซิร์ฟเวอร์ยังไม่พร้อม (ผู้ดูแลต้องตั้งค่า SMTP) ลองใหม่ภายหลังนะ");
+        else toast(authErr(error));
+        return;
+      }
       // ไม่บอกว่าอีเมลมีจริงไหม (กัน enumeration) — แจ้งกลางๆ
       toast("ถ้าอีเมลนี้มีบัญชี เราส่งลิงก์ไปแล้ว เช็คกล่องจดหมายนะ");
       setTimeout(() => go("auth"), 2000);
