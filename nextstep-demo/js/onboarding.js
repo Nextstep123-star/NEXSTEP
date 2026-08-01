@@ -436,10 +436,11 @@ function wireOB() {
       submit.disabled = true;
       submit.innerHTML = `<span class="ob-spinner inline-block"></span> กำลังสร้างบัญชี...`;
 
-      // --- สร้างบัญชีใน Supabase Auth (autoconfirm ON → มี session ทันที) ---
+      // --- สร้างบัญชีใน Supabase Auth ---
       const { data: authData, error: sErr } = await db.auth.signUp({
         email, password: pass,
-        options: { data: { first_name: OB.data.name } },
+        // แนบข้อมูล onboarding ไว้ใน metadata เผื่อ trigger ใช้ + กันข้อมูลหาย
+        options: { data: { first_name: OB.data.name, education_level: obEducationLevel(), school_name: OB.data.school, gpa: OB.data.gpax } },
       });
       if (sErr) {
         submit.disabled = false;
@@ -449,16 +450,37 @@ function wireOB() {
       }
 
       const uid = authData?.user?.id;
-      // อัปเดต state ของ app
-      if (typeof state !== "undefined") { state.user = authData.user; state.guest = false; }
 
-      // --- บันทึกข้อมูล onboarding (trigger สร้าง row ให้แล้ว → update, RLS ผ่านเพราะมี session) ---
-      const ok = await saveOnboardingProfile(uid);
-      if (!ok) {
+      // ⚠️ ถ้ายังไม่มี session (ต้องยืนยันอีเมลก่อน) → เขียน DB ตอนนี้ไม่ได้ (สิทธิ์ anon ถูกปิด)
+      //    เก็บข้อมูลไว้ แล้วบันทึกอัตโนมัติหลังผู้ใช้ยืนยันอีเมล + ล็อกอิน
+      if (!authData.session) {
+        savePendingOnboarding({
+          name: OB.data.name, grade: OB.data.grade, major: OB.data.major,
+          school: OB.data.school, gpax: OB.data.gpax, interests: OB.data.interests,
+        });
         submit.disabled = false;
         submit.innerHTML = `${obIcon("rocket_launch")} เริ่มต้นเลย!`;
-        obToast("สร้างบัญชีแล้ว แต่บันทึกข้อมูลไม่สำเร็จ ลองอีกครั้งนะ");
+        obToast("สมัครสำเร็จ! เช็คอีเมลเพื่อยืนยัน แล้วเข้าสู่ระบบ — ข้อมูลจะถูกบันทึกให้อัตโนมัติ");
+        setTimeout(() => {
+          if (typeof state !== "undefined") state.authStep = "login";
+          if (typeof go === "function") go("auth");
+        }, 2600);
         return;
+      }
+
+      // มี session แล้ว → บันทึกได้ทันที
+      if (typeof state !== "undefined") { state.user = authData.user; state.guest = false; }
+      const ok = await saveOnboardingProfile(uid);
+      if (!ok) {
+        // เขียนไม่สำเร็จ (เช่น RLS/trigger) → เก็บไว้ save ตอน route ถัดไป แทนที่จะทิ้ง
+        savePendingOnboarding({
+          name: OB.data.name, grade: OB.data.grade, major: OB.data.major,
+          school: OB.data.school, gpax: OB.data.gpax, interests: OB.data.interests,
+        });
+        submit.disabled = false;
+        submit.innerHTML = `${obIcon("rocket_launch")} เริ่มต้นเลย!`;
+        obToast("สร้างบัญชีแล้ว กำลังบันทึกข้อมูล...");
+        if (typeof routeAfterAuth === "function") { await routeAfterAuth(); return; }
       }
 
       obComplete(OB.data.name);

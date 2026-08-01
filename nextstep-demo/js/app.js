@@ -126,6 +126,10 @@ const state = {
 const LS_PATHS = "nextstep_paths";
 const LS_MAIN = "nextstep_main";
 const LS_PROGRESS = "nextstep_progress"; // { pathId: [stepNumbers...] } — ขั้นที่ทำเสร็จ
+const LS_PENDING_OB = "nextstep_pending_ob"; // ข้อมูล onboarding ที่รอบันทึกหลังยืนยันอีเมล+ล็อกอิน
+const getPendingOnboarding = () => { try { return JSON.parse(localStorage.getItem(LS_PENDING_OB) || "null"); } catch { return null; } };
+const savePendingOnboarding = (d) => { try { localStorage.setItem(LS_PENDING_OB, JSON.stringify(d)); } catch {} };
+const clearPendingOnboarding = () => { try { localStorage.removeItem(LS_PENDING_OB); } catch {} };
 const getPaths = () => { try { return JSON.parse(localStorage.getItem(LS_PATHS)) || []; } catch { return []; } };
 const savePaths = (p) => localStorage.setItem(LS_PATHS, JSON.stringify(p));
 const getMain = () => localStorage.getItem(LS_MAIN);
@@ -386,14 +390,14 @@ async function doGoogleLogin() {
 }
 function authErr(e) {
   const m = (e?.message || "").toLowerCase();
+  if (m.includes("rate limit") || m.includes("too many") || m.includes("429")) return "ขอบ่อยเกินไป รอสักครู่แล้วลองใหม่นะ";
   if (m.includes("invalid login")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   if (m.includes("already registered") || m.includes("already been registered") || m.includes("user already")) return "อีเมลนี้มีบัญชีอยู่แล้ว ลองเข้าสู่ระบบดูมั้ย?";
-  if (m.includes("email not confirmed")) return "อีเมลยังไม่ได้ยืนยัน — ลองสมัครใหม่หรือขอลิงก์ยืนยันอีกครั้ง";
+  if (m.includes("email not confirmed")) return "อีเมลยังไม่ได้ยืนยัน — เช็คกล่องอีเมลแล้วกดลิงก์ยืนยันก่อนนะ";
   if (m.includes("should be different") || m.includes("different from the old")) return "รหัสใหม่ต้องต่างจากรหัสเดิม";
   if (m.includes("weak") || (m.includes("password") && m.includes("least"))) return "รหัสผ่านสั้นเกินไป ต้องมีอย่างน้อย 8 ตัว";
   if (m.includes("password")) return "รหัสผ่านไม่ถูกต้อง";
   if (m.includes("email")) return "อีเมลไม่ถูกต้อง";
-  if (m.includes("rate limit") || m.includes("too many")) return "ขอบ่อยเกินไป รอสักครู่แล้วลองใหม่นะ";
   return "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง";
 }
 
@@ -1914,9 +1918,27 @@ async function loadProfile() {
   } catch { return state.profile || null; }
 }
 
+// บันทึกข้อมูล onboarding ที่ค้างไว้ (ตอนสมัครยังไม่มี session เพราะต้องยืนยันอีเมล) — เรียกหลังมี session แล้ว
+async function applyPendingOnboarding(uid) {
+  const d = getPendingOnboarding();
+  if (!d || !uid) return;
+  try {
+    const eduLevel = d.major ? `${d.grade} · ${d.major}`.trim() : (d.grade || "");
+    const { error } = await db.from("users_profile").update({
+      first_name: d.name, education_level: eduLevel, school_name: d.school, gpa: d.gpax, onboarded: true,
+    }).eq("id", uid);
+    if (error) throw error;
+    try { await db.auth.updateUser({ data: { first_name: d.name } }); } catch {}
+    try { await db.from("user_preferences").upsert({ user_id: uid, interests: d.interests || [] }, { onConflict: "user_id" }); } catch {}
+    clearPendingOnboarding();
+    toast("บันทึกข้อมูลของคุณเรียบร้อยแล้ว");
+  } catch (e) { console.warn("applyPendingOnboarding failed:", e?.message); }
+}
+
 // route หลังรู้ session แล้ว: ยังไม่ตอบคำถาม → onboarding(profile), ตอบแล้ว → dashboard
 async function routeAfterAuth() {
   if (!state.user) { go("auth"); return; }
+  if (getPendingOnboarding()) await applyPendingOnboarding(state.user.id); // มี session แล้ว → บันทึกที่ค้างไว้
   const p = await loadProfile();               // ดึงข้อมูลจริงมา cache
   if (!p || p.onboarded !== true) { startOnboarding("profile"); return; }
   go("create-path");
