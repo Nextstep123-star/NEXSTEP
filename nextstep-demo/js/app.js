@@ -624,8 +624,8 @@ function viewDashboard() {
         <span id="dash-rm-badge" class="shrink-0 text-[13px] font-mono font-bold text-primary bg-primary/10 border border-primary/30 rounded-lg px-3 py-1">${mpPct != null ? mpPct + "%" : "—"}</span>
       </div>
 
-      <!-- horizontal step nodes (real, from main path roadmap) -->
-      <div id="dash-rm-steps" class="relative flex items-center gap-0 mb-5 overflow-x-auto no-scrollbar pb-1">
+      <!-- horizontal step nodes (real, from main path roadmap) — เลื่อนแนวนอนได้ -->
+      <div id="dash-rm-steps" class="relative flex items-start gap-0 mb-5 overflow-x-auto no-scrollbar pb-1">
         <div class="h-16 w-full bg-surface-variant/40 rounded-lg animate-pulse"></div>
       </div>
 
@@ -907,33 +907,34 @@ function dashSteps() {
   }).join("");
 }
 
-/* horizontal step nodes จาก roadmap จริงของเส้นทางหลัก (done/current ตาม progress) */
+/* horizontal step nodes จาก roadmap จริงของเส้นทางหลัก — คอลัมน์กว้างคงที่ เลื่อนแนวนอน (กันป้ายทับกัน) */
 function dashRealSteps(roadmap, pathId) {
   const completed = getProgress(pathId);
   const cur = currentStepNumber(roadmap, completed);
+  const doneAt = (idx) => idx >= 0 && idx < roadmap.length && completed.includes(roadmap[idx].step_number);
   return roadmap.map((s, i) => {
     const done = completed.includes(s.step_number);
     const current = s.step_number === cur;
     const dotCls = done
       ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a]"
       : current
-        ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a] ring-4 ring-primary/30"
+        ? "bg-primary border-primary text-on-primary shadow-[0_3px_0_#96a80a] ring-2 ring-primary/40"
         : "bg-surface-container border-surface-variant text-on-surface-variant";
-    const line = i < roadmap.length - 1
-      ? `<div class="flex-1 h-0.5 mx-1 ${done ? "bg-primary" : "bg-surface-variant"}" style="min-width:20px"></div>`
-      : "";
+    const leftLine = i === 0 ? "bg-transparent" : (doneAt(i - 1) ? "bg-primary" : "bg-surface-variant");
+    const rightLine = i === roadmap.length - 1 ? "bg-transparent" : (done ? "bg-primary" : "bg-surface-variant");
     return `
-      <div class="flex items-center flex-1 min-w-0">
-        <div class="flex flex-col items-center gap-1 shrink-0">
-          <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center font-mono font-bold text-[13px] ${dotCls}">
+      <div class="flex flex-col items-center shrink-0" style="width:82px">
+        <div class="flex items-center w-full">
+          <div class="flex-1 h-0.5 ${leftLine}"></div>
+          <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center font-mono font-bold text-[13px] shrink-0 ${dotCls}">
             ${done ? icon("check", { fill: true }) : s.step_number}
           </div>
-          <div class="text-center" style="width:74px">
-            <div class="font-bold text-[10px] ${current ? "text-primary" : "text-on-surface"} leading-tight line-clamp-2">${esc(s.title)}</div>
-            ${s.target_period ? `<div class="text-[9px] text-on-surface-variant mt-0.5">${esc(s.target_period)}</div>` : ""}
-          </div>
+          <div class="flex-1 h-0.5 ${rightLine}"></div>
         </div>
-        ${line}
+        <div class="text-center mt-1.5 px-1 w-full">
+          <div class="font-bold text-[10px] ${current ? "text-primary" : "text-on-surface"} leading-tight line-clamp-2">${esc(s.title)}</div>
+          ${s.target_period ? `<div class="text-[9px] text-on-surface-variant mt-0.5 truncate">${esc(s.target_period)}</div>` : ""}
+        </div>
       </div>`;
   }).join("");
 }
