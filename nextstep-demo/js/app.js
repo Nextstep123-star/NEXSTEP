@@ -1799,8 +1799,9 @@ function wireView(v) {
         btn.disabled = false; btn.innerHTML = `${sl("check",{size:16,color:"#16180f"})} บันทึกรหัสใหม่`;
         toast(authErr(error)); return;
       }
-      // เคลียร์ hash recovery ออกจาก URL
+      // เคลียร์ hash recovery ออกจาก URL + ออกจากโหมด recovery
       try { history.replaceState(null, "", window.location.pathname); } catch {}
+      state.recovery = false;
       toast("เปลี่ยนรหัสผ่านสำเร็จ");
       await routeAfterAuth();
     });
@@ -1872,21 +1873,25 @@ async function boot() {
     if (localStorage.getItem(LS_ADMIN) === "1") { enterAdminMode(); return; }
   } catch {}
 
+  // จับสัญญาณ recovery ตั้งแต่ต้น (ก่อน supabase-js เคลียร์ hash ทิ้ง)
+  const recoveryInUrl = /type=recovery/.test(window.location.hash || "") || /type=recovery/.test(window.location.search || "");
+
   // ฟัง auth event (Google redirect, recovery ฯลฯ) — sync state
   db.auth.onAuthStateChange((event, session) => {
     state.user = session?.user || null;
-    if (event === "PASSWORD_RECOVERY") go("reset-password");
+    if (event === "PASSWORD_RECOVERY") { state.recovery = true; go("reset-password"); }
   });
-
-  // ลิงก์ reset จากอีเมลมาพร้อม hash type=recovery
-  const isRecovery = /type=recovery/.test(window.location.hash || "");
 
   try {
     const { data } = await db.auth.getSession();
     state.user = data?.session?.user || null;
   } catch { state.user = null; }
 
-  if (isRecovery && state.user) { go("reset-password"); return; }
+  // ให้เวลา detectSessionInUrl ประมวลผลลิงก์ + ยิง PASSWORD_RECOVERY ก่อน
+  await new Promise((r) => setTimeout(r, 80));
+
+  // อยู่ในโหมดตั้งรหัสใหม่ → หยุดที่หน้า reset-password อย่าให้ routeAfterAuth เด้งทับ
+  if (state.recovery || (recoveryInUrl && state.user)) { state.recovery = true; go("reset-password"); return; }
 
   // ไม่มี session แต่มี guest ที่กรอกข้อมูลเริ่มต้นไว้ → กลับเข้าแอปแบบ guest ได้เลย
   if (!state.user) {
